@@ -1,0 +1,46 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+artifacts/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+**/packages/*
+!**/packages/build/
+
+# IDE / editor
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.user
+*.suo
+*.userprefs
+*.swp
+*~
+
+# Test results / coverage
+[Tt]est[Rr]esult*/
+*.trx
+coverage*.xml
+coverage*.json
+coverage*.info
+[Cc]overage[Rr]eport*/
+
+# Local configuration / secrets (tenant credentials must never be committed)
+appsettings.*.local.json
+*.local.json
+.env
+.env.*
+secrets.json
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
