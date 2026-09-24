@@ -9,7 +9,7 @@ plain records instead of generated protobuf types, `DateTimeOffset`
 instead of `Timestamp`, nullable values instead of proto `optional`, and a
 single exception type for every server error.
 
-> **Status:** early development - the API shown below is the target design.
+> **Status:** early development (0.x) - the API may still change.
 
 ## Features
 
@@ -17,7 +17,7 @@ single exception type for every server error.
 - **Conversations** - start, link documents, chat with citations, list messages, export as Markdown
 - **Billing** - current token usage and monthly history for your tenant
 - **Async only** - every call is `async` and cancellable
-- **Minimal dependencies** - `Grpc.Net.Client` and `Google.Protobuf`
+- **Minimal dependencies** - `Grpc.Net.Client`, `Google.Protobuf` and the DI/Options abstractions
 
 Administrative operations (`AdminService`) are intentionally not included.
 
@@ -45,9 +45,13 @@ await using var client = new MentisClient(new MentisClientOptions
     Secret   = "your-tenant-secret",
 });
 
-// 1. Upload a document and wait until it is indexed
+// 1. Upload a document and wait until it is processed
 var document = await client.Documents.UploadAsync("handbook.pdf", title: "Employee Handbook");
-document = await client.Documents.WaitUntilReadyAsync(document.Id);
+document = await client.Documents.WaitUntilProcessedAsync(document.Id);
+if (document.Status == DocumentStatus.Failed)
+{
+    throw new InvalidOperationException(document.FailureReason);
+}
 
 // 2. Start a conversation grounded in that document
 var conversation = await client.Conversations.StartAsync(
@@ -76,7 +80,7 @@ builder.Services.AddMentisClient(options =>
     options.Secret   = builder.Configuration["Mentis:Secret"]!;
 });
 
-// Inject MentisClient anywhere - it is registered as a singleton.
+// Inject MentisClient (singleton) - or DocumentsClient, ConversationsClient, BillingClient directly.
 ```
 
 `MentisClient` holds one gRPC channel and is safe to share across threads.
@@ -104,7 +108,7 @@ await foreach (var d in client.Documents.EnumerateAsync())
 var hits = await client.Documents.SearchAsync("travel expense policy", topK: 5);
 
 // Content, chunks, maintenance
-byte[] original = await client.Documents.GetContentAsync(doc.Id);
+DocumentContent original = await client.Documents.GetContentAsync(doc.Id); // FileName + bytes
 var chunks = await client.Documents.GetChunksAsync(doc.Id);
 await client.Documents.RenameAsync(doc.Id, "Meeting Notes");
 await client.Documents.RetryProcessingAsync(doc.Id);   // after a failed import
@@ -113,6 +117,8 @@ await client.Documents.DeleteAsync(doc.Id);
 
 Uploads are processed in the background. A freshly uploaded document is in
 `Uploaded` or `Processing` state and becomes searchable once it is `Ready`.
+`WaitUntilProcessedAsync` polls until it is `Ready` or `Failed`; pass a
+timed `CancellationToken` to limit the wait.
 
 ### Conversations
 
@@ -151,6 +157,8 @@ Console.WriteLine($"{usage.TotalTokens} / {usage.MonthlyTokenLimit?.ToString() ?
 Every server error is raised as a `MentisException`:
 
 ```csharp
+using Grpc.Core; // StatusCode
+
 try
 {
     await client.Documents.GetAsync("unknown-id");
@@ -161,8 +169,10 @@ catch (MentisException ex) when (ex.StatusCode == StatusCode.NotFound)
 }
 catch (MentisException ex) when (ex.ValidationErrors.Count > 0)
 {
-    foreach (var (field, error) in ex.ValidationErrors)
-        Console.WriteLine($"{field}: {error}");
+    foreach (var (field, messages) in ex.ValidationErrors)
+    {
+        Console.WriteLine($"{field}: {string.Join(", ", messages)}");
+    }
 }
 ```
 
@@ -181,12 +191,15 @@ Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 
 | Option                       | Description                                                          |
 |------------------------------|----------------------------------------------------------------------|
-| `Endpoint`                   | Manager address, e.g. `http://localhost:8080` or `https://ai.example.com` |
+| `Endpoint`                   | Manager address (default `http://localhost:8080`), or e.g. `https://ai.example.com` |
 | `TenantId` / `Secret`        | Tenant credentials                                                   |
 | `ApiKey`                     | Alternative to the above: `"<tenantId>.<secret>"`                    |
 | `Timeout`                    | Default deadline per call (optional)                                 |
-| `MaxSendMessageSizeBytes`    | Raise for uploads larger than 4 MB (the server limit must match)     |
-| `MaxReceiveMessageSizeBytes` | Raise to download large documents                                    |
+| `MaxSendMessageSizeBytes`    | Optional client-side cap on request size (default: unlimited)        |
+| `MaxReceiveMessageSizeBytes` | Response size limit (default 4 MB) - raise to download large documents |
+
+Uploads are sent as a single message. The Manager accepts 4 MB per request by
+default; raise its `GrpcHost:MaxReceiveMessageSizeBytes` for larger files.
 
 The Manager listens on plain HTTP/2 (h2c). Use `http://` for direct
 connections and `https://` when a TLS reverse proxy is in front of it.

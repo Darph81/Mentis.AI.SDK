@@ -6,6 +6,7 @@
 
     <IsPackable>true</IsPackable>
     <PackageId>Mentis.AI.Sdk</PackageId>
+    <Version>0.1.0</Version>
     <Description>Lightweight, async-only .NET client for the Mentis.AI Manager: documents, conversations and billing.</Description>
     <PackageTags>mentis;ai;llm;rag;grpc;sdk</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
