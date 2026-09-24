@@ -51,6 +51,7 @@ Mentis.AI.Sdk.slnx
 Directory.Build.props            shared build settings (net10.0, nullable, analyzers)
 Directory.Packages.props         central package versions
 global.json
+.editorconfig                    code style, copied from the Manager
 src/Mentis.AI.Sdk/
   Protos/                        copies of the Manager's non-admin .proto files
   MentisClient.cs                entry point: .Documents / .Conversations / .Billing
@@ -62,8 +63,13 @@ src/Mentis.AI.Sdk/
   Internal/                      proto <-> model mapping, auth interceptor
   DependencyInjection/           AddMentisClient() extension
 tests/Mentis.AI.Sdk.Tests/
-samples/Mentis.AI.Sdk.Sample/    minimal console app
+samples/Mentis.AI.Sdk.Sample/    minimal console app (planned)
 ```
+
+Build settings: only `Mentis.AI.Sdk` is packable (`IsPackable` defaults to
+false in `Directory.Build.props`). Warnings are errors in Release. The
+generated gRPC clients are internal and exposed to the test project (and to
+`DynamicProxyGenAssembly2` for NSubstitute) via `InternalsVisibleTo`.
 
 ## Key design decisions
 

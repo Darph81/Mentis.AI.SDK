@@ -1,0 +1,32 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <TreatWarningsAsErrors Condition="'$(Configuration)' == 'Release'">true</TreatWarningsAsErrors>
+    <!-- CA1707: test method names use underscores (Method_State_Expectation). -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <Company>Mentis.AI</Company>
+    <Product>Mentis.AI SDK</Product>
+    <Authors>Mentis.AI Contributors</Authors>
+    <Copyright>Copyright (c) $([System.DateTime]::Now.Year) Mentis.AI</Copyright>
+
+    <!-- Only the SDK itself is published as a package; opt in per project. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+</Project>

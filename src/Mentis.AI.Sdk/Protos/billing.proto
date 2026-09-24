@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package mentis.ai.v1;
+
+option csharp_namespace = "Mentis.AI.Sdk.Internal.Grpc";
+
+// Every RPC here requires a valid Bearer token (see
+// Mentis.AI.GrpcHost.Interceptors.AuthenticationInterceptor), either admin
+// or a tenant - unlike AdminService, this is not admin-only. A tenant
+// token always sees only its own usage: any tenant_id it passes is
+// ignored (Phase 54, same "never reveal whether another id even exists"
+// principle Mentis.AI.Application.Authorization.TenantAccessPolicy applies
+// elsewhere). The admin account must specify tenant_id explicitly, since
+// it has no "own" usage of its own to default to - admin-initiated
+// SendMessage calls are never counted in the first place.
+
+message TenantUsage {
+  string tenant_id = 1;
+  int32 year = 2;
+  int32 month = 3;
+  int64 total_tokens = 4;
+  // Unset means unlimited (Phase 58). This is the tenant's CURRENT
+  // setting, not something historical - repeated identically across
+  // every month in ListTenantUsageHistoryResponse.
+  optional int64 monthly_token_limit = 5;
+}
+
+message GetTenantUsageRequest {
+  // Required for admin, ignored for a tenant caller (see above).
+  optional string tenant_id = 1;
+  // Both optional - default to the current calendar month if omitted.
+  optional int32 year = 2;
+  optional int32 month = 3;
+}
+
+message GetTenantUsageResponse {
+  TenantUsage usage = 1;
+}
+
+message ListTenantUsageHistoryRequest {
+  // Required for admin, ignored for a tenant caller (see above).
+  optional string tenant_id = 1;
+}
+
+message ListTenantUsageHistoryResponse {
+  // Newest month first. A month with no recorded usage simply has no
+  // entry here - there is no explicit "zero" row for every month that
+  // ever existed.
+  repeated TenantUsage history = 1;
+}
+
+service BillingService {
+  rpc GetTenantUsage(GetTenantUsageRequest) returns (GetTenantUsageResponse);
+  rpc ListTenantUsageHistory(ListTenantUsageHistoryRequest) returns (ListTenantUsageHistoryResponse);
+}
