@@ -1,0 +1,226 @@
+syntax = "proto3";
+
+package mentis.ai.v1;
+
+option csharp_namespace = "Mentis.AI.Sdk.Internal.Grpc";
+
+import "google/protobuf/timestamp.proto";
+
+enum MessageRole {
+  MESSAGE_ROLE_UNSPECIFIED = 0;
+  MESSAGE_ROLE_USER = 1;
+  MESSAGE_ROLE_ASSISTANT = 2;
+  MESSAGE_ROLE_SYSTEM = 3;
+}
+
+message Citation {
+  string document_id = 1;
+  string chunk_id = 2;
+  string snippet = 3;
+  // Only populated on citations attached to a message returned directly
+  // from SendMessage - empty on citations read back later via
+  // GetConversationById/ListMessages. See
+  // Mentis.AI.Application.DTOs.CitationDto for why.
+  string document_title = 4;
+}
+
+message ChatMessage {
+  string id = 1;
+  MessageRole role = 2;
+  string content = 3;
+  google.protobuf.Timestamp created_at = 4;
+  repeated Citation citations = 5;
+}
+
+message Conversation {
+  string id = 1;
+  string title = 2;
+  google.protobuf.Timestamp created_at = 3;
+  repeated string linked_document_ids = 4;
+  repeated ChatMessage messages = 5;
+  // Never unset (Phase 52) - there is no such thing as a global conversation.
+  string tenant_id = 6;
+  // Empty for tenant-global conversations (no single owner).
+  optional string owner_user_id = 7;
+}
+
+message StartConversationRequest {
+  string title = 1;
+  // Optional. Any document that doesn't exist causes the whole call to
+  // fail with NOT_FOUND - nothing gets created.
+  repeated string initial_document_ids = 2;
+  // Phase 69: identifies the end user WITHIN the calling tenant, as
+  // supplied by the upstream system (never verified here - see
+  // Mentis.AI.Domain.Aggregates.Conversation.OwnerUserId). Omitting it
+  // creates a TENANT-GLOBAL conversation, visible to every user of this
+  // tenant. Ignored for admin, who sees every conversation anyway.
+  optional string user_id = 3;
+}
+
+message StartConversationResponse {
+  Conversation conversation = 1;
+}
+
+message GetConversationByIdRequest {
+  string conversation_id = 1;
+  optional string user_id = 2;
+}
+
+message GetConversationByIdResponse {
+  Conversation conversation = 1;
+}
+
+message LinkDocumentToConversationRequest {
+  string conversation_id = 1;
+  string document_id = 2;
+  optional string user_id = 3;
+}
+
+message LinkDocumentToConversationResponse {
+}
+
+message UnlinkDocumentFromConversationRequest {
+  string conversation_id = 1;
+  string document_id = 2;
+  optional string user_id = 3;
+}
+
+message UnlinkDocumentFromConversationResponse {
+}
+
+message LinkDocumentsToConversationRequest {
+  string conversation_id = 1;
+  repeated string document_ids = 2;
+  optional string user_id = 3;
+}
+
+message LinkDocumentsToConversationResponse {
+}
+
+message DeleteConversationRequest {
+  string conversation_id = 1;
+  optional string user_id = 2;
+}
+
+message DeleteConversationResponse {
+}
+
+message RenameConversationRequest {
+  string conversation_id = 1;
+  string new_title = 2;
+  optional string user_id = 3;
+}
+
+message RenameConversationResponse {
+  Conversation conversation = 1;
+}
+
+message ListMessagesRequest {
+  string conversation_id = 1;
+  // 1-based. 0 or unset defaults to page 1 / 50 items - see
+  // Mentis.AI.Application.Queries.ListMessagesQuery for the authoritative defaults.
+  int32 page_number = 2;
+  int32 page_size = 3;
+  // Optional. MESSAGE_ROLE_UNSPECIFIED (the default/0 value) means no
+  // filter - messages of every role are returned.
+  MessageRole role_filter = 4;
+  optional string user_id = 5;
+}
+
+message ListMessagesResponse {
+  repeated ChatMessage messages = 1;
+  int32 total_count = 2;
+  int32 page_number = 3;
+  int32 page_size = 4;
+}
+
+message GetConversationsByIdsRequest {
+  repeated string conversation_ids = 1;
+  optional string user_id = 2;
+}
+
+message GetConversationsByIdsResponse {
+  repeated ConversationSummary conversations = 1;
+}
+
+message GetConversationsLinkedToDocumentRequest {
+  string document_id = 1;
+  optional string user_id = 2;
+}
+
+message GetConversationsLinkedToDocumentResponse {
+  repeated ConversationSummary conversations = 1;
+}
+
+message ExportConversationRequest {
+  string conversation_id = 1;
+  optional string user_id = 2;
+}
+
+message ExportConversationResponse {
+  string markdown = 1;
+}
+
+message SendMessageRequest {
+  string conversation_id = 1;
+  string content = 2;
+  // Phase 68: optional model override. Unset means "use the deployment's
+  // configured default"; if set, must be either that same default or one
+  // of the deployment's configured allow-listed models.
+  optional string model = 3;
+  optional string user_id = 4;
+  // Phase 70: credential for the calling tenant's configured OData data
+  // source (see Tenant.ODataEndpointUrl/ODataAuthScheme), if one is set up.
+  // Ephemeral - used only for this one call's outbound OData request, never
+  // stored or logged anywhere. Ignored entirely when the tenant has no
+  // OData endpoint configured.
+  optional string odata_secret = 5;
+}
+
+message SendMessageResponse {
+  ChatMessage message = 1;
+}
+
+message ConversationSummary {
+  string id = 1;
+  string title = 2;
+  google.protobuf.Timestamp created_at = 3;
+  repeated string linked_document_ids = 4;
+  int32 message_count = 5;
+  string tenant_id = 6;
+  // Empty for tenant-global conversations (no single owner).
+  optional string owner_user_id = 7;
+}
+
+message ListConversationsRequest {
+  // 1-based. 0 or unset defaults to page 1 / 20 items - see
+  // Mentis.AI.Application.Queries.ListConversationsQuery for the authoritative defaults.
+  int32 page_number = 1;
+  int32 page_size = 2;
+  // Optional. Empty/unset means no filter. Case-insensitive substring match.
+  string title_contains = 3;
+  optional string user_id = 4;
+}
+
+message ListConversationsResponse {
+  repeated ConversationSummary conversations = 1;
+  int32 total_count = 2;
+  int32 page_number = 3;
+  int32 page_size = 4;
+}
+
+service ConversationService {
+  rpc StartConversation(StartConversationRequest) returns (StartConversationResponse);
+  rpc GetConversationById(GetConversationByIdRequest) returns (GetConversationByIdResponse);
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
+  rpc LinkDocumentToConversation(LinkDocumentToConversationRequest) returns (LinkDocumentToConversationResponse);
+  rpc UnlinkDocumentFromConversation(UnlinkDocumentFromConversationRequest) returns (UnlinkDocumentFromConversationResponse);
+  rpc LinkDocumentsToConversation(LinkDocumentsToConversationRequest) returns (LinkDocumentsToConversationResponse);
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+  rpc RenameConversation(RenameConversationRequest) returns (RenameConversationResponse);
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
+  rpc GetConversationsByIds(GetConversationsByIdsRequest) returns (GetConversationsByIdsResponse);
+  rpc GetConversationsLinkedToDocument(GetConversationsLinkedToDocumentRequest) returns (GetConversationsLinkedToDocumentResponse);
+  rpc ExportConversation(ExportConversationRequest) returns (ExportConversationResponse);
+}

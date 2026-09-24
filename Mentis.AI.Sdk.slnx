@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mentis.AI.Sdk/Mentis.AI.Sdk.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Mentis.AI.Sdk.Tests/Mentis.AI.Sdk.Tests.csproj" />
+  </Folder>
+</Solution>

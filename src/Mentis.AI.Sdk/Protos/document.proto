@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package mentis.ai.v1;
+
+option csharp_namespace = "Mentis.AI.Sdk.Internal.Grpc";
+
+import "google/protobuf/timestamp.proto";
+
+enum DocumentType {
+  DOCUMENT_TYPE_UNSPECIFIED = 0;
+  DOCUMENT_TYPE_PDF = 1;
+  DOCUMENT_TYPE_DOCX = 2;
+  DOCUMENT_TYPE_MARKDOWN = 3;
+  DOCUMENT_TYPE_HTML = 4;
+  DOCUMENT_TYPE_TXT = 5;
+}
+
+enum DocumentStatus {
+  DOCUMENT_STATUS_UNSPECIFIED = 0;
+  DOCUMENT_STATUS_UPLOADED = 1;
+  DOCUMENT_STATUS_PROCESSING = 2;
+  DOCUMENT_STATUS_READY = 3;
+  DOCUMENT_STATUS_FAILED = 4;
+}
+
+message Document {
+  string id = 1;
+  string title = 2;
+  string file_name = 3;
+  DocumentType type = 4;
+  int64 size_in_bytes = 5;
+  DocumentStatus status = 6;
+  optional string failure_reason = 7;
+  google.protobuf.Timestamp created_at = 8;
+  optional google.protobuf.Timestamp processed_at = 9;
+  int32 chunk_count = 10;
+  // Unset means a global document (Phase 52) - visible to and usable by
+  // every tenant, manageable only by admin.
+  optional string tenant_id = 11;
+}
+
+message UploadDocumentRequest {
+  string title = 1;
+  string file_name = 2;
+  DocumentType type = 3;
+  int64 size_in_bytes = 4;
+  bytes content = 5;
+}
+
+message UploadDocumentResponse {
+  Document document = 1;
+}
+
+message GetDocumentByIdRequest {
+  string document_id = 1;
+}
+
+message GetDocumentByIdResponse {
+  Document document = 1;
+}
+
+message ListDocumentsRequest {
+  // 1-based. 0 or unset defaults to page 1 / 20 items - see
+  // Mentis.AI.Application.Queries.ListDocumentsQuery for the authoritative defaults.
+  int32 page_number = 1;
+  int32 page_size = 2;
+  // Optional. DOCUMENT_STATUS_UNSPECIFIED (the default/0 value) means no
+  // filter - documents in every status are returned.
+  DocumentStatus status_filter = 3;
+  // Optional. Empty/unset means no filter. Case-insensitive substring match.
+  // Can be combined with status_filter.
+  string title_contains = 4;
+}
+
+message ListDocumentsResponse {
+  repeated Document documents = 1;
+  int32 total_count = 2;
+  int32 page_number = 3;
+  int32 page_size = 4;
+}
+
+message DeleteDocumentRequest {
+  string document_id = 1;
+}
+
+message DeleteDocumentResponse {
+}
+
+message RenameDocumentRequest {
+  string document_id = 1;
+  string new_title = 2;
+}
+
+message RenameDocumentResponse {
+  Document document = 1;
+}
+
+message SearchDocumentsRequest {
+  string query_text = 1;
+  // Empty = search across every Ready document.
+  repeated string document_ids = 2;
+  // 0 or unset defaults to 5 - see
+  // Mentis.AI.Application.Queries.SearchDocumentsQuery for the authoritative default.
+  int32 top_k = 3;
+}
+
+message SearchResult {
+  string document_id = 1;
+  string chunk_id = 2;
+  string content = 3;
+  double score = 4;
+}
+
+message SearchDocumentsResponse {
+  repeated SearchResult results = 1;
+}
+
+message GetDocumentContentRequest {
+  string document_id = 1;
+}
+
+message GetDocumentContentResponse {
+  bytes content = 1;
+  string file_name = 2;
+}
+
+message DocumentChunk {
+  string id = 1;
+  int32 sequence_number = 2;
+  string content = 3;
+  bool has_embedding = 4;
+}
+
+message GetDocumentChunksRequest {
+  string document_id = 1;
+  // 1-based. 0 or unset defaults to page 1 / 50 items - see
+  // Mentis.AI.Application.Queries.GetDocumentChunksQuery for the authoritative defaults.
+  int32 page_number = 2;
+  int32 page_size = 3;
+}
+
+message GetDocumentChunksResponse {
+  repeated DocumentChunk chunks = 1;
+  int32 total_count = 2;
+  int32 page_number = 3;
+  int32 page_size = 4;
+}
+
+message RetryDocumentProcessingRequest {
+  string document_id = 1;
+}
+
+message RetryDocumentProcessingResponse {
+  Document document = 1;
+}
+
+message GetDocumentsByIdsRequest {
+  repeated string document_ids = 1;
+}
+
+message GetDocumentsByIdsResponse {
+  repeated Document documents = 1;
+}
+
+message DeleteDocumentsRequest {
+  repeated string document_ids = 1;
+}
+
+message DeleteDocumentsResponse {
+}
+
+service DocumentService {
+  rpc UploadDocument(UploadDocumentRequest) returns (UploadDocumentResponse);
+  rpc GetDocumentById(GetDocumentByIdRequest) returns (GetDocumentByIdResponse);
+  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
+  rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
+  rpc RenameDocument(RenameDocumentRequest) returns (RenameDocumentResponse);
+  rpc SearchDocuments(SearchDocumentsRequest) returns (SearchDocumentsResponse);
+  rpc GetDocumentContent(GetDocumentContentRequest) returns (GetDocumentContentResponse);
+  rpc GetDocumentChunks(GetDocumentChunksRequest) returns (GetDocumentChunksResponse);
+  rpc RetryDocumentProcessing(RetryDocumentProcessingRequest) returns (RetryDocumentProcessingResponse);
+  rpc GetDocumentsByIds(GetDocumentsByIdsRequest) returns (GetDocumentsByIdsResponse);
+  rpc DeleteDocuments(DeleteDocumentsRequest) returns (DeleteDocumentsResponse);
+}
