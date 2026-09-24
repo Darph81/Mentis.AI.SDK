@@ -162,6 +162,17 @@ var alice  = client.Conversations.ForUser("alice"); // scoped to end user
 `ForUser` returns a lightweight new `ConversationsClient` over the same
 channel.
 
+### Configuration is set once
+
+Endpoint, tenant id and secret are configured **once** - via
+`MentisClientOptions` or `services.AddMentisClient(endpoint, tenantId, secret)`
+- and the interceptor sends them with every call. No public method takes a
+tenant id or credential parameter; do not add one. `AddMentisClient`
+registers `MentisClient` plus `DocumentsClient`, `ConversationsClient`
+(tenant-global) and `BillingClient` as singletons. No static/global
+configuration (e.g. a `MentisSdk.Configure()` singleton) - DI or an explicitly
+created `MentisClient` only.
+
 ### Paging
 
 List RPCs return `PagedResult<T>` (`Items`, `TotalCount`, `PageNumber`,

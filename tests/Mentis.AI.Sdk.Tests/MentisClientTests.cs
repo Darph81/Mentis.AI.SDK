@@ -4,6 +4,7 @@ using Grpc.Core.Interceptors;
 using Mentis.AI.Sdk.Internal;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Mentis.AI.Sdk.Tests;
 
@@ -61,6 +62,33 @@ public class MentisClientTests
         provider.GetRequiredService<DocumentsClient>().ShouldBeSameAs(client.Documents);
         provider.GetRequiredService<ConversationsClient>().ShouldBeSameAs(client.Conversations);
         provider.GetRequiredService<BillingClient>().ShouldBeSameAs(client.Billing);
+    }
+
+    [Test]
+    public async Task AddMentisClient_WithCredentials_ConfiguresOptionsOnce()
+    {
+        var services = new ServiceCollection();
+        services.AddMentisClient(
+            new Uri("http://mentis:8080"),
+            "tenant",
+            "secret",
+            o => o.Timeout = TimeSpan.FromSeconds(10));
+
+        await using ServiceProvider provider = services.BuildServiceProvider();
+
+        MentisClientOptions options = provider.GetRequiredService<IOptions<MentisClientOptions>>().Value;
+        options.Endpoint.ShouldBe(new Uri("http://mentis:8080"));
+        options.GetValidatedApiKey().ShouldBe("tenant.secret");
+        options.Timeout.ShouldBe(TimeSpan.FromSeconds(10));
+        provider.GetRequiredService<MentisClient>().ShouldBeSameAs(provider.GetRequiredService<MentisClient>());
+    }
+
+    [Test]
+    public void AddMentisClient_WithMissingSecret_ThrowsAtRegistration()
+    {
+        var services = new ServiceCollection();
+
+        Should.Throw<ArgumentException>(() => services.AddMentisClient(new Uri("http://mentis:8080"), "tenant", " "));
     }
 
     [Test]
