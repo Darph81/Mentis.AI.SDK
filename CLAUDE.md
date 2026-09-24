@@ -322,3 +322,62 @@ Update this table in the same change whenever an RPC is added or renamed.
 dotnet build
 dotnet test
 ```
+
+## Roadmap - open work
+
+Work through these one step at a time, one branch/PR each. When a step is
+done, tick it off here (`[x]`) in the same PR and move any lasting decisions
+into the sections above. Keep the order unless the owner says otherwise.
+
+### Required before the first release
+
+- [ ] **1. Sample app + integration tests against a real Manager.**
+  Everything is only verified against mocks so far. Unverified: h2c
+  connection to port 8080, Bearer header accepted by the server, the assumed
+  error format (`"<Code>: <Message>"`, `validation-error-*` trailers),
+  behavior of large uploads.
+  - `samples/Mentis.AI.Sdk.Sample/`: minimal console app running the full
+    flow (upload → `WaitUntilProcessedAsync` → start conversation → send
+    message → billing). Credentials from environment variables.
+  - Integration tests that run only when `MENTIS_ENDPOINT` and
+    `MENTIS_API_KEY` are set (skipped otherwise, so CI stays green).
+  - Fix whatever the real server contradicts, and correct this file.
+- [ ] **2. Proto drift check.** Script (and later CI step) that compares
+  `src/Mentis.AI.Sdk/Protos/*.proto` with the Manager's copies
+  (`../SmartAI.Manager/src/Mentis.AI.Contracts/Protos/`), ignoring only the
+  `csharp_namespace` line, and fails on any difference.
+- [ ] **3. CI (GitHub Actions).** Build (Release), test and `dotnet pack` on
+  every PR and push to `main`.
+- [ ] **4. Package metadata.** `RepositoryUrl`, `PackageProjectUrl`,
+  optional icon, `CHANGELOG.md`.
+- [ ] **5. Close test gaps.** Untested so far: `LinkDocumentAsync`,
+  `LinkDocumentsAsync`, `UnlinkDocumentAsync`, `GetLinkedToDocumentAsync`,
+  `GetManyAsync` (both), `RenameAsync` (both), `RetryProcessingAsync`,
+  `DeleteManyAsync`, `GetChunksAsync`, `ConversationsClient.EnumerateAsync`,
+  `UploadAsync(filePath)`, the `Timeout` option end-to-end.
+
+### Worth doing - decide deliberately
+
+- [ ] **6. HTTP/2 keep-alive pings.** `SendMessageAsync` can take minutes
+  (LLM generation); reverse proxies drop idle connections. Configure
+  `SocketsHttpHandler.KeepAlivePingDelay/Timeout` on the owned channel.
+  Invisible to users.
+- [ ] **7. Retry on transient errors.** gRPC retry policy for `Unavailable`.
+  **Never** for non-idempotent calls (`SendMessage`, `Upload*`, `Start*`,
+  `Link*`) - a retry would duplicate messages and token costs. At most for
+  read-only calls, and only as an opt-in option.
+- [ ] **8. Optional logging.** `ILoggerFactory` on `MentisClientOptions`,
+  passed to `GrpcChannelOptions.LoggerFactory`. No new mandatory dependency
+  beyond `Microsoft.Extensions.Logging.Abstractions`.
+
+### Decided against (for now) - don't re-propose without a new reason
+
+- Health endpoints (`/health*`) - not protos, out of scope.
+- Per-tenant `IMentisClientFactory` - one tenant per application today; add
+  when that changes.
+- `AdminService` - out of scope by requirement.
+- Binding options from `IConfiguration` - where credentials come from
+  (startup, the consuming app's database, ...) is the app's concern.
+- Warning on plaintext `http://` endpoints - plaintext h2c inside a Docker
+  network (`http://mentis-ai:8080`) is the normal deployment.
+- Static/global configuration singleton - DI or an explicit `MentisClient`.
