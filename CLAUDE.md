@@ -60,9 +60,9 @@ src/Mentis.AI.Sdk/
   Conversations/                 ConversationsClient + public models
   Billing/                       BillingClient + public models
   Errors/                        MentisException + RpcException translation
-  Internal/                      proto <-> model mapping, auth interceptor
+  Internal/                      ProtoMapper, MentisCallInterceptor, RpcInvoker, Paging
   DependencyInjection/           AddMentisClient() extension
-tests/Mentis.AI.Sdk.Tests/
+tests/Mentis.AI.Sdk.Tests/       unit tests (mocked gRPC clients)
 samples/Mentis.AI.Sdk.Sample/    minimal console app (planned)
 ```
 
@@ -83,9 +83,11 @@ mapped in `Internal/`. Reasons:
   nullable (`string?`, `DateTimeOffset?`), `repeated` → `IReadOnlyList<T>`,
   `bytes` → `ReadOnlyMemory<byte>` / `Stream`.
 - Proto enum names (`DOCUMENT_STATUS_READY`) become idiomatic
-  (`DocumentStatus.Ready`). The `*_UNSPECIFIED = 0` values are **not**
-  exposed as public members where they only mean "no filter" - use a
-  nullable parameter instead (e.g. `DocumentStatus? status = null`).
+  (`DocumentStatus.Ready`). Public enum values equal the proto values, so
+  mapping is a cast. `*_UNSPECIFIED = 0` becomes `Unknown = 0`, which is
+  also what any value unknown to this SDK version maps to (forward
+  compatibility with newer Managers). Filters are nullable parameters
+  (`DocumentStatus? status = null`), never "pass Unknown for no filter".
 - Consumers never need to reference Google.Protobuf types, and proto
   changes do not ripple straight into their code.
 
@@ -125,9 +127,14 @@ generated C#.
   .NET 10; `https://` is used when a TLS-terminating reverse proxy sits in
   front.
 - Uploads send the whole file in one unary message (`bytes content`).
-  gRPC's default 4 MB limit applies on both sides; `MentisClientOptions`
-  exposes `MaxSendMessageSizeBytes` / `MaxReceiveMessageSizeBytes`, and the
-  server's `GrpcHost:MaxReceiveMessageSizeBytes` must be raised to match.
+  The client's send size is unlimited by default; the server rejects
+  requests above its `GrpcHost:MaxReceiveMessageSizeBytes` (4 MB default).
+  The client's receive limit is 4 MB by default (matters for
+  `GetContentAsync`). `MentisClientOptions` exposes
+  `MaxSendMessageSizeBytes` / `MaxReceiveMessageSizeBytes`.
+- The owned channel is created with `ThrowOperationCanceledOnCancellation`,
+  and `RpcInvoker` additionally maps `Cancelled` + cancelled token to
+  `OperationCanceledException` for externally supplied channels.
 
 ### One client, one channel
 
@@ -183,7 +190,8 @@ Validation errors additionally carry trailers `validation-error-<field>`
 The SDK translates every `RpcException` into a single public
 **`MentisException`** exposing `StatusCode`, `ErrorCode` (parsed prefix, may
 be null), `Message`, and `ValidationErrors`
-(`IReadOnlyDictionary<string, string>`). The original `RpcException` is kept
+(`IReadOnlyDictionary<string, IReadOnlyList<string>>` - a field can have
+several messages). The original `RpcException` is kept
 as `InnerException`. Cancellation via the caller's token surfaces as
 `OperationCanceledException`, not as `MentisException`.
 
@@ -235,8 +243,10 @@ Update this table in the same change whenever an RPC is added or renamed.
 
 - **Uploads are processed asynchronously.** `UploadAsync` returns a
   document in `Uploaded`/`Processing`; it becomes searchable only at
-  `Ready`. Poll `GetAsync` (a `WaitUntilReadyAsync` helper with
-  configurable interval/timeout is fine) - there is no streaming status RPC.
+  `Ready`. There is no streaming status RPC, so
+  `WaitUntilProcessedAsync` polls `GetAsync` until `Ready` **or** `Failed`
+  and returns the document (it does not throw on `Failed`; callers check
+  `Status`). No timeout parameter - callers pass a timed token.
 - **Global documents** (`TenantId == null`) are readable by every tenant but
   only modifiable by admin - rename/delete on them fails for tenant tokens.
 - **Citations**: `DocumentTitle` is only populated on messages returned
@@ -268,11 +278,16 @@ Update this table in the same change whenever an RPC is added or renamed.
 
 ## Testing
 
-- Unit tests mock the generated gRPC client via NSubstitute
-  (`AsyncUnaryCall` built with `TestCalls.AsyncUnaryCall(...)`) and assert
-  on mapping, argument validation and error translation.
-- Optional integration tests run against a real Manager and are skipped
-  unless `MENTIS_ENDPOINT` and `MENTIS_API_KEY` are set.
+- Unit tests substitute the generated gRPC clients with NSubstitute. Mock
+  the overload `XxxAsync(request, Metadata, DateTime?, CancellationToken)` -
+  that is the one the SDK calls. Completed calls come from
+  `GrpcTestCalls.Success/Failure` (plain `AsyncUnaryCall` constructor, no
+  `Grpc.Core.Testing` dependency). Service clients have internal
+  constructors taking the generated client, so tests build them directly.
+- Tests cover mapping, request building (incl. optional-field presence
+  such as `HasUserId`), argument validation and error translation.
+- Integration tests against a real Manager (skipped unless
+  `MENTIS_ENDPOINT` / `MENTIS_API_KEY` are set) are planned, not yet present.
 
 ```bash
 dotnet build
