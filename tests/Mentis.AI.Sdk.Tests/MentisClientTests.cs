@@ -59,9 +59,10 @@ public class MentisClientTests
         await using ServiceProvider provider = services.BuildServiceProvider();
 
         var client = provider.GetRequiredService<MentisClient>();
-        provider.GetRequiredService<DocumentsClient>().ShouldBeSameAs(client.Documents);
-        provider.GetRequiredService<ConversationsClient>().ShouldBeSameAs(client.Conversations);
-        provider.GetRequiredService<BillingClient>().ShouldBeSameAs(client.Billing);
+        provider.GetRequiredService<IMentisClient>().ShouldBeSameAs(client);
+        provider.GetRequiredService<IDocumentsClient>().ShouldBeSameAs(client.Documents);
+        provider.GetRequiredService<IConversationsClient>().ShouldBeSameAs(client.Conversations);
+        provider.GetRequiredService<IBillingClient>().ShouldBeSameAs(client.Billing);
     }
 
     [Test]

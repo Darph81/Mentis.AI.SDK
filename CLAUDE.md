@@ -54,11 +54,11 @@ global.json
 .editorconfig                    code style, copied from the Manager
 src/Mentis.AI.Sdk/
   Protos/                        copies of the Manager's non-admin .proto files
-  MentisClient.cs                entry point: .Documents / .Conversations / .Billing
+  IMentisClient.cs, MentisClient.cs   entry point: .Documents / .Conversations / .Billing
   MentisClientOptions.cs
-  Documents/                     DocumentsClient + public models
-  Conversations/                 ConversationsClient + public models
-  Billing/                       BillingClient + public models
+  Documents/                     IDocumentsClient (public) + DocumentsClient (internal) + models
+  Conversations/                 IConversationsClient + ConversationsClient (internal) + models
+  Billing/                       IBillingClient + BillingClient (internal) + models
   Errors/                        MentisException + RpcException translation
   Internal/                      ProtoMapper, MentisCallInterceptor, RpcInvoker, Paging
   DependencyInjection/           AddMentisClient() extension
@@ -90,6 +90,21 @@ mapped in `Internal/`. Reasons:
   (`DocumentStatus? status = null`), never "pass Unknown for no filter".
 - Consumers never need to reference Google.Protobuf types, and proto
   changes do not ripple straight into their code.
+
+### Public API is interfaces
+
+Consumers work against `IMentisClient`, `IDocumentsClient`,
+`IConversationsClient` and `IBillingClient`, so they can substitute them in
+their own tests and register them in any DI container (e.g. LightInject via
+`RegisterInstance`). Only `MentisClient` (the one thing you construct) is a
+public class; the service client implementations are `internal sealed`.
+
+- XML docs live on the **interfaces**; implementations use `/// <inheritdoc />`.
+- Adding an RPC means adding it to the interface **and** the implementation.
+- Default parameter values must be identical on interface and implementation.
+- One tenant per application is the current use case. A per-tenant
+  `IMentisClientFactory` (with an app-implemented credential provider) is a
+  possible later addition - not built yet, don't add it speculatively.
 
 ### Proto files are copied, not linked
 
@@ -168,8 +183,11 @@ Endpoint, tenant id and secret are configured **once** - via
 `MentisClientOptions` or `services.AddMentisClient(endpoint, tenantId, secret)`
 - and the interceptor sends them with every call. No public method takes a
 tenant id or credential parameter; do not add one. `AddMentisClient`
-registers `MentisClient` plus `DocumentsClient`, `ConversationsClient`
-(tenant-global) and `BillingClient` as singletons. No static/global
+registers `MentisClient`/`IMentisClient` plus `IDocumentsClient`,
+`IConversationsClient` (tenant-global) and `IBillingClient` as singletons.
+Where the credentials come from (startup config, the consuming app's
+database, ...) is the consuming application's concern - the SDK only takes
+the values. No static/global
 configuration (e.g. a `MentisSdk.Configure()` singleton) - DI or an explicitly
 created `MentisClient` only.
 

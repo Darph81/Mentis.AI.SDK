@@ -94,11 +94,45 @@ builder.Services.AddMentisClient(options =>
     options.ApiKey   = "<tenantId>.<secret>";
 });
 
-// Inject MentisClient (singleton) - or DocumentsClient, ConversationsClient, BillingClient directly.
+// Inject IMentisClient - or IDocumentsClient, IConversationsClient, IBillingClient directly.
+public sealed class HandbookService(IDocumentsClient documents) { ... }
 ```
 
 `MentisClient` holds one gRPC channel and is safe to share across threads.
 Create it once and reuse it.
+
+### Other DI containers (e.g. LightInject)
+
+The SDK does not depend on a specific container. `MentisClient` performs no
+I/O in its constructor, so create it once - for example after loading the
+credentials from your own database at startup - and register the instances:
+
+```csharp
+var client = new MentisClient(new MentisClientOptions
+{
+    Endpoint = endpoint,
+    TenantId = tenantId,
+    Secret   = secret,
+});
+
+container.RegisterInstance<IMentisClient>(client);
+container.RegisterInstance(client.Documents);      // IDocumentsClient
+container.RegisterInstance(client.Conversations);  // IConversationsClient
+container.RegisterInstance(client.Billing);        // IBillingClient
+```
+
+Dispose the client when the application shuts down. Containers bridged via
+`Microsoft.Extensions.DependencyInjection` (such as
+`LightInject.Microsoft.DependencyInjection`) can use `AddMentisClient` directly.
+
+### Testing your code
+
+Depend on the interfaces and substitute them in your unit tests:
+
+```csharp
+var documents = Substitute.For<IDocumentsClient>();
+documents.GetAsync("d1", Arg.Any<CancellationToken>()).Returns(new Document { ... });
+```
 
 ## Usage
 

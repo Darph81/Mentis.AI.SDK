@@ -9,10 +9,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class MentisServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="MentisClient"/> as a singleton for the given Manager and tenant, plus
-    /// <see cref="DocumentsClient"/>, <see cref="ConversationsClient"/> (tenant-global) and
-    /// <see cref="BillingClient"/> for direct injection. The credentials are configured once here and
-    /// sent with every call - no request needs a tenant id.
+    /// Registers <see cref="MentisClient"/> / <see cref="IMentisClient"/> as a singleton for the given
+    /// Manager and tenant, plus <see cref="IDocumentsClient"/>, <see cref="IConversationsClient"/>
+    /// (tenant-global) and <see cref="IBillingClient"/> for direct injection. The credentials are configured
+    /// once here and sent with every call - no request needs a tenant id.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="endpoint">Address of the Mentis.AI Manager, e.g. <c>http://localhost:8080</c>.</param>
@@ -41,8 +41,9 @@ public static class MentisServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers <see cref="MentisClient"/> as a singleton, plus <see cref="DocumentsClient"/>,
-    /// <see cref="ConversationsClient"/> (tenant-global) and <see cref="BillingClient"/> for direct injection.
+    /// Registers <see cref="MentisClient"/> / <see cref="IMentisClient"/> as a singleton, plus
+    /// <see cref="IDocumentsClient"/>, <see cref="IConversationsClient"/> (tenant-global) and
+    /// <see cref="IBillingClient"/> for direct injection.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Sets endpoint and credentials.</param>
@@ -56,6 +57,7 @@ public static class MentisServiceCollectionExtensions
 
         services.AddOptions<MentisClientOptions>().Configure(configure);
         services.TryAddSingleton(sp => new MentisClient(sp.GetRequiredService<IOptions<MentisClientOptions>>().Value));
+        services.TryAddSingleton<IMentisClient>(sp => sp.GetRequiredService<MentisClient>());
         services.TryAddSingleton(sp => sp.GetRequiredService<MentisClient>().Documents);
         services.TryAddSingleton(sp => sp.GetRequiredService<MentisClient>().Conversations);
         services.TryAddSingleton(sp => sp.GetRequiredService<MentisClient>().Billing);

@@ -4,10 +4,8 @@ using Proto = Mentis.AI.Sdk.Internal.Grpc;
 
 namespace Mentis.AI.Sdk;
 
-/// <summary>
-/// Token usage of the calling tenant. Obtain an instance via <see cref="MentisClient.Billing"/>.
-/// </summary>
-public sealed class BillingClient
+/// <summary>gRPC-backed implementation of <see cref="IBillingClient"/>.</summary>
+internal sealed class BillingClient : IBillingClient
 {
     private readonly Proto.BillingService.BillingServiceClient _client;
 
@@ -16,10 +14,7 @@ public sealed class BillingClient
         _client = client;
     }
 
-    /// <summary>Gets the tenant's token usage for one month.</summary>
-    /// <param name="year">Calendar year; defaults to the current year.</param>
-    /// <param name="month">Calendar month (1-12); defaults to the current month.</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <inheritdoc />
     public async Task<TenantUsage> GetUsageAsync(
         int? year = null,
         int? month = null,
@@ -45,10 +40,7 @@ public sealed class BillingClient
         return response.Usage.ToModel();
     }
 
-    /// <summary>
-    /// Gets the tenant's usage for every month with recorded usage, newest first.
-    /// Months without usage have no entry.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<IReadOnlyList<TenantUsage>> GetUsageHistoryAsync(CancellationToken cancellationToken = default)
     {
         Proto.ListTenantUsageHistoryResponse response = await RpcInvoker.InvokeAsync(
