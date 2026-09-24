@@ -30,7 +30,7 @@ public sealed record Citation
 
     /// <summary>
     /// Title of the cited document. Only populated on messages returned directly by
-    /// <see cref="ConversationsClient.SendMessageAsync"/>; <see langword="null"/> when read back later.
+    /// <see cref="IConversationsClient.SendMessageAsync"/>; <see langword="null"/> when read back later.
     /// </summary>
     public string? DocumentTitle { get; init; }
 }

@@ -15,7 +15,7 @@ namespace Mentis.AI.Sdk;
 /// The client is thread-safe. Create it once and reuse it for the lifetime of your application
 /// (or register it as a singleton via <c>AddMentisClient</c>).
 /// </remarks>
-public sealed class MentisClient : IAsyncDisposable, IDisposable
+public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
 {
     private readonly GrpcChannel? _ownedChannel;
 
@@ -65,17 +65,14 @@ public sealed class MentisClient : IAsyncDisposable, IDisposable
         Billing = new BillingClient(new Proto.BillingService.BillingServiceClient(invoker));
     }
 
-    /// <summary>Upload, search and manage documents.</summary>
-    public DocumentsClient Documents { get; }
+    /// <inheritdoc />
+    public IDocumentsClient Documents { get; }
 
-    /// <summary>
-    /// Tenant-global conversations. Use <see cref="ConversationsClient.ForUser"/> for the conversations
-    /// of a single end user.
-    /// </summary>
-    public ConversationsClient Conversations { get; }
+    /// <inheritdoc />
+    public IConversationsClient Conversations { get; }
 
-    /// <summary>Token usage of the tenant.</summary>
-    public BillingClient Billing { get; }
+    /// <inheritdoc />
+    public IBillingClient Billing { get; }
 
     /// <inheritdoc />
     public void Dispose() => _ownedChannel?.Dispose();

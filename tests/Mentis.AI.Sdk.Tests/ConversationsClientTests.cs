@@ -46,7 +46,7 @@ public class ConversationsClientTests
         _grpc.DeleteConversationAsync(Arg.Do<Proto.DeleteConversationRequest>(r => delete = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.DeleteConversationResponse()));
 
-        ConversationsClient alice = _client.ForUser("alice");
+        IConversationsClient alice = _client.ForUser("alice");
         Conversation conversation = await alice.StartAsync("Chat");
         await alice.DeleteAsync("c1");
 

@@ -4,15 +4,8 @@ using Proto = Mentis.AI.Sdk.Internal.Grpc;
 
 namespace Mentis.AI.Sdk;
 
-/// <summary>
-/// Start conversations, link documents and chat. Obtain an instance via <see cref="MentisClient.Conversations"/>.
-/// </summary>
-/// <remarks>
-/// The instance from <see cref="MentisClient.Conversations"/> works with tenant-global conversations,
-/// visible to every user of the tenant. Use <see cref="ForUser"/> to work with the conversations of one
-/// end user of your application instead.
-/// </remarks>
-public sealed class ConversationsClient
+/// <summary>gRPC-backed implementation of <see cref="IConversationsClient"/>.</summary>
+internal sealed class ConversationsClient : IConversationsClient
 {
     private readonly Proto.ConversationService.ConversationServiceClient _client;
 
@@ -22,26 +15,17 @@ public sealed class ConversationsClient
         UserId = userId;
     }
 
-    /// <summary>
-    /// The end user this client is scoped to, or <see langword="null"/> for tenant-global conversations.
-    /// </summary>
+    /// <inheritdoc />
     public string? UserId { get; }
 
-    /// <summary>
-    /// Returns a client scoped to one end user of your application. Conversations started through it are
-    /// owned by that user. The id is supplied by your application and not verified by the Manager.
-    /// </summary>
-    /// <param name="userId">Your application's id for the end user.</param>
-    public ConversationsClient ForUser(string userId)
+    /// <inheritdoc />
+    public IConversationsClient ForUser(string userId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         return new ConversationsClient(_client, userId);
     }
 
-    /// <summary>Starts a new conversation.</summary>
-    /// <param name="title">Display title.</param>
-    /// <param name="documentIds">Documents to link right away. If any does not exist, nothing is created.</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <inheritdoc />
     public async Task<Conversation> StartAsync(
         string title,
         IEnumerable<string>? documentIds = null,
@@ -66,7 +50,7 @@ public sealed class ConversationsClient
         return response.Conversation.ToModel();
     }
 
-    /// <summary>Gets a conversation including all its messages.</summary>
+    /// <inheritdoc />
     public async Task<Conversation> GetAsync(string conversationId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
@@ -83,7 +67,7 @@ public sealed class ConversationsClient
         return response.Conversation.ToModel();
     }
 
-    /// <summary>Gets several conversations (without messages) by id in one call.</summary>
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ConversationSummary>> GetManyAsync(
         IEnumerable<string> conversationIds,
         CancellationToken cancellationToken = default)
@@ -103,11 +87,7 @@ public sealed class ConversationsClient
         return [.. response.Conversations.Select(c => c.ToModel())];
     }
 
-    /// <summary>Lists one page of conversations (without messages).</summary>
-    /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
-    /// <param name="pageSize">Items per page; the server defaults to 20.</param>
-    /// <param name="titleContains">Only return conversations whose title contains this text (case-insensitive).</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <inheritdoc />
     public async Task<PagedResult<ConversationSummary>> ListAsync(
         int? pageNumber = null,
         int? pageSize = null,
@@ -140,10 +120,7 @@ public sealed class ConversationsClient
         };
     }
 
-    /// <summary>Iterates over all conversations, fetching further pages as needed.</summary>
-    /// <param name="titleContains">Only return conversations whose title contains this text (case-insensitive).</param>
-    /// <param name="pageSize">Items fetched per call; the server default is used when omitted.</param>
-    /// <param name="cancellationToken">Cancels the enumeration.</param>
+    /// <inheritdoc />
     public IAsyncEnumerable<ConversationSummary> EnumerateAsync(
         string? titleContains = null,
         int? pageSize = null,
@@ -156,7 +133,7 @@ public sealed class ConversationsClient
             cancellationToken);
     }
 
-    /// <summary>Gets all conversations a document is linked to.</summary>
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ConversationSummary>> GetLinkedToDocumentAsync(
         string documentId,
         CancellationToken cancellationToken = default)
@@ -175,7 +152,7 @@ public sealed class ConversationsClient
         return [.. response.Conversations.Select(c => c.ToModel())];
     }
 
-    /// <summary>Changes the title of a conversation.</summary>
+    /// <inheritdoc />
     public async Task<Conversation> RenameAsync(
         string conversationId,
         string newTitle,
@@ -196,7 +173,7 @@ public sealed class ConversationsClient
         return response.Conversation.ToModel();
     }
 
-    /// <summary>Deletes a conversation and its messages.</summary>
+    /// <inheritdoc />
     public async Task DeleteAsync(string conversationId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
@@ -212,7 +189,7 @@ public sealed class ConversationsClient
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Links a document to a conversation so answers can draw on it.</summary>
+    /// <inheritdoc />
     public async Task LinkDocumentAsync(
         string conversationId,
         string documentId,
@@ -232,7 +209,7 @@ public sealed class ConversationsClient
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Links several documents to a conversation in one call.</summary>
+    /// <inheritdoc />
     public async Task LinkDocumentsAsync(
         string conversationId,
         IEnumerable<string> documentIds,
@@ -253,7 +230,7 @@ public sealed class ConversationsClient
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Removes the link between a document and a conversation.</summary>
+    /// <inheritdoc />
     public async Task UnlinkDocumentAsync(
         string conversationId,
         string documentId,
@@ -273,18 +250,7 @@ public sealed class ConversationsClient
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Sends a user message and returns the assistant's answer.</summary>
-    /// <param name="conversationId">The conversation.</param>
-    /// <param name="content">The user's message.</param>
-    /// <param name="model">
-    /// Optional model override. Must be the deployment's default model or one of its allow-listed models.
-    /// </param>
-    /// <param name="odataSecret">
-    /// Credential for the tenant's configured OData data source, used for this call only. Ignored when the
-    /// tenant has no OData source. Never stored or logged.
-    /// </param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>The assistant's answer including citations.</returns>
+    /// <inheritdoc />
     public async Task<ChatMessage> SendMessageAsync(
         string conversationId,
         string content,
@@ -317,12 +283,7 @@ public sealed class ConversationsClient
         return response.Message.ToModel();
     }
 
-    /// <summary>Lists one page of the messages of a conversation.</summary>
-    /// <param name="conversationId">The conversation.</param>
-    /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
-    /// <param name="pageSize">Items per page; the server defaults to 50.</param>
-    /// <param name="role">Only return messages with this role.</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <inheritdoc />
     public async Task<PagedResult<ChatMessage>> ListMessagesAsync(
         string conversationId,
         int? pageNumber = null,
@@ -358,7 +319,7 @@ public sealed class ConversationsClient
         };
     }
 
-    /// <summary>Exports a conversation as a Markdown document.</summary>
+    /// <inheritdoc />
     public async Task<string> ExportMarkdownAsync(string conversationId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);

@@ -6,10 +6,8 @@ using Proto = Mentis.AI.Sdk.Internal.Grpc;
 
 namespace Mentis.AI.Sdk;
 
-/// <summary>
-/// Upload, search and manage documents. Obtain an instance via <see cref="MentisClient.Documents"/>.
-/// </summary>
-public sealed class DocumentsClient
+/// <summary>gRPC-backed implementation of <see cref="IDocumentsClient"/>.</summary>
+internal sealed class DocumentsClient : IDocumentsClient
 {
     private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(1);
 
@@ -31,15 +29,7 @@ public sealed class DocumentsClient
         _client = client;
     }
 
-    /// <summary>Uploads a file from disk.</summary>
-    /// <param name="filePath">Path of the file to upload.</param>
-    /// <param name="title">Display title; defaults to the file name without extension.</param>
-    /// <param name="type">File format; inferred from the file extension when omitted.</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>
-    /// The stored document. It is processed in the background - use <see cref="WaitUntilProcessedAsync"/>
-    /// to wait until it can be searched.
-    /// </returns>
+    /// <inheritdoc />
     public async Task<Document> UploadAsync(
         string filePath,
         string? title = null,
@@ -56,16 +46,7 @@ public sealed class DocumentsClient
         }
     }
 
-    /// <summary>Uploads a document from a stream.</summary>
-    /// <param name="content">The file content; read to the end, not disposed.</param>
-    /// <param name="fileName">Original file name, e.g. <c>report.pdf</c>.</param>
-    /// <param name="title">Display title; defaults to <paramref name="fileName"/> without extension.</param>
-    /// <param name="type">File format; inferred from the extension of <paramref name="fileName"/> when omitted.</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>
-    /// The stored document. It is processed in the background - use <see cref="WaitUntilProcessedAsync"/>
-    /// to wait until it can be searched.
-    /// </returns>
+    /// <inheritdoc />
     public async Task<Document> UploadAsync(
         Stream content,
         string fileName,
@@ -93,8 +74,7 @@ public sealed class DocumentsClient
         return response.Document.ToModel();
     }
 
-    /// <summary>Gets a document by id.</summary>
-    /// <exception cref="MentisException">With <c>NotFound</c> if the document does not exist or is not visible.</exception>
+    /// <inheritdoc />
     public async Task<Document> GetAsync(string documentId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
@@ -105,7 +85,7 @@ public sealed class DocumentsClient
         return response.Document.ToModel();
     }
 
-    /// <summary>Gets several documents by id in one call.</summary>
+    /// <inheritdoc />
     public async Task<IReadOnlyList<Document>> GetManyAsync(
         IEnumerable<string> documentIds,
         CancellationToken cancellationToken = default)
@@ -121,12 +101,7 @@ public sealed class DocumentsClient
         return [.. response.Documents.Select(d => d.ToModel())];
     }
 
-    /// <summary>Lists one page of documents.</summary>
-    /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
-    /// <param name="pageSize">Items per page; the server defaults to 20.</param>
-    /// <param name="status">Only return documents in this state.</param>
-    /// <param name="titleContains">Only return documents whose title contains this text (case-insensitive).</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <inheritdoc />
     public async Task<PagedResult<Document>> ListAsync(
         int? pageNumber = null,
         int? pageSize = null,
@@ -157,11 +132,7 @@ public sealed class DocumentsClient
         };
     }
 
-    /// <summary>Iterates over all documents, fetching further pages as needed.</summary>
-    /// <param name="status">Only return documents in this state.</param>
-    /// <param name="titleContains">Only return documents whose title contains this text (case-insensitive).</param>
-    /// <param name="pageSize">Items fetched per call; the server default is used when omitted.</param>
-    /// <param name="cancellationToken">Cancels the enumeration.</param>
+    /// <inheritdoc />
     public IAsyncEnumerable<Document> EnumerateAsync(
         DocumentStatus? status = null,
         string? titleContains = null,
@@ -175,7 +146,7 @@ public sealed class DocumentsClient
             cancellationToken);
     }
 
-    /// <summary>Changes the title of a document.</summary>
+    /// <inheritdoc />
     public async Task<Document> RenameAsync(
         string documentId,
         string newTitle,
@@ -191,7 +162,7 @@ public sealed class DocumentsClient
         return response.Document.ToModel();
     }
 
-    /// <summary>Deletes a document.</summary>
+    /// <inheritdoc />
     public async Task DeleteAsync(string documentId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
@@ -201,7 +172,7 @@ public sealed class DocumentsClient
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Deletes several documents in one call.</summary>
+    /// <inheritdoc />
     public async Task DeleteManyAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(documentIds);
@@ -214,11 +185,7 @@ public sealed class DocumentsClient
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Semantic search over the chunks of ready documents.</summary>
-    /// <param name="query">The search text.</param>
-    /// <param name="documentIds">Restrict the search to these documents; all ready documents when omitted.</param>
-    /// <param name="topK">Maximum number of results; the server defaults to 5.</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <inheritdoc />
     public async Task<IReadOnlyList<DocumentSearchResult>> SearchAsync(
         string query,
         IEnumerable<string>? documentIds = null,
@@ -243,7 +210,7 @@ public sealed class DocumentsClient
         return [.. response.Results.Select(r => r.ToModel())];
     }
 
-    /// <summary>Downloads the original file of a document.</summary>
+    /// <inheritdoc />
     public async Task<DocumentContent> GetContentAsync(string documentId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
@@ -254,11 +221,7 @@ public sealed class DocumentsClient
         return new DocumentContent { FileName = response.FileName, Content = response.Content.Memory };
     }
 
-    /// <summary>Lists one page of the chunks a document was split into.</summary>
-    /// <param name="documentId">The document.</param>
-    /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
-    /// <param name="pageSize">Items per page; the server defaults to 50.</param>
-    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <inheritdoc />
     public async Task<PagedResult<DocumentChunk>> GetChunksAsync(
         string documentId,
         int? pageNumber = null,
@@ -288,7 +251,7 @@ public sealed class DocumentsClient
         };
     }
 
-    /// <summary>Queues a failed document for processing again.</summary>
+    /// <inheritdoc />
     public async Task<Document> RetryProcessingAsync(string documentId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
@@ -299,14 +262,7 @@ public sealed class DocumentsClient
         return response.Document.ToModel();
     }
 
-    /// <summary>
-    /// Polls a document until processing has finished, i.e. its status is
-    /// <see cref="DocumentStatus.Ready"/> or <see cref="DocumentStatus.Failed"/>.
-    /// </summary>
-    /// <param name="documentId">The document to wait for.</param>
-    /// <param name="pollInterval">Delay between polls; defaults to one second.</param>
-    /// <param name="cancellationToken">Cancels waiting - use a timed token source to limit the wait.</param>
-    /// <returns>The document in its final state. Check <see cref="Document.Status"/> for failure.</returns>
+    /// <inheritdoc />
     public async Task<Document> WaitUntilProcessedAsync(
         string documentId,
         TimeSpan? pollInterval = null,
