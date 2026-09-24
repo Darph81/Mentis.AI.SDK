@@ -72,12 +72,26 @@ foreach (var citation in answer.Citations)
 
 ## Dependency injection
 
+Register the client once with the Manager endpoint and your tenant
+credentials. They are sent with every call - no request takes a tenant id.
+
 ```csharp
+builder.Services.AddMentisClient(
+    endpoint: new Uri(builder.Configuration["Mentis:Endpoint"]!),
+    tenantId: builder.Configuration["Mentis:TenantId"]!,
+    secret:   builder.Configuration["Mentis:Secret"]!);
+
+// Optional further settings
+builder.Services.AddMentisClient(endpoint, tenantId, secret, options =>
+{
+    options.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// Or configure everything yourself
 builder.Services.AddMentisClient(options =>
 {
-    options.Endpoint = new Uri(builder.Configuration["Mentis:Endpoint"]!);
-    options.TenantId = builder.Configuration["Mentis:TenantId"]!;
-    options.Secret   = builder.Configuration["Mentis:Secret"]!;
+    options.Endpoint = endpoint;
+    options.ApiKey   = "<tenantId>.<secret>";
 });
 
 // Inject MentisClient (singleton) - or DocumentsClient, ConversationsClient, BillingClient directly.
