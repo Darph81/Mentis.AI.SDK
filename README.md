@@ -232,7 +232,9 @@ catch (MentisException ex) when (ex.ValidationErrors.Count > 0)
 | `FailedPrecondition` | Conflict with the current state                            |
 | `Unauthenticated`    | Missing or invalid tenant credentials                      |
 | `PermissionDenied`   | Not allowed, e.g. modifying a global document              |
-| `Internal`           | Server-side failure                                        |
+| `Internal`           | Server-side failure (e.g. the LLM provider failed)         |
+| `ResourceExhausted`  | Rate limit hit (`ErrorCode` = `RateLimit.Exceeded`) - safe to retry after the wait in the message; also raised for oversized messages |
+| `Unavailable`        | Manager unreachable                                        |
 
 Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 

@@ -315,8 +315,27 @@ Update this table in the same change whenever an RPC is added or renamed.
 - `StartConversation` with any unknown `initial_document_ids` fails the
   whole call with `NotFound`; nothing is created.
 - Monthly token limits: `TenantUsage.MonthlyTokenLimit == null` means
-  unlimited.
-- Rate limiting is per caller identity on the server.
+  unlimited. Once a tenant's usage reaches its limit, `SendMessage` fails
+  with `FailedPrecondition` / `Tenant.MonthlyTokenLimitReached` before any
+  LLM cost is spent (verified). One chat call costs roughly 1.5-2k tokens
+  with `llama3.2:1b`; the `Llm` integration test is ignored (not failed)
+  when the test tenant's limit is used up.
+- **Rate limiting** is per caller identity (tenant): a fixed window of
+  `RateLimiting:PermitLimit` requests per `WindowSeconds` (Manager default
+  100 / 60 s, no queueing). A rejected call gets a proper gRPC status
+  (Manager fix 2026-09-28, verified): `MentisException` with
+  `StatusCode.ResourceExhausted`, `ErrorCode == "RateLimit.Exceeded"`,
+  message like `"Too many requests, retry in 60 s."`, plus the trailer
+  `grpc-retry-pushback-ms` (wait time until the next window), sent as a
+  gRPC **Trailers-Only** response (status in the single header block) - only
+  that shape lets gRPC retry policies retry the call at all; a separate
+  trailer block counts as a committed response (verified both ways). The request
+  was **not** processed, so retrying it is safe even for non-idempotent
+  calls - the basis for roadmap item 7. Note: `ResourceExhausted` also
+  comes from gRPC's own message-size limits - check `ErrorCode`, not just
+  the status. `Unavailable` now means "Manager unreachable" only.
+  The full integration suite gets close to 100 calls, so the test client
+  retries rate-limited calls (channel retry policy honoring the pushback).
 - Health endpoints (`/health`, `/health/live`, `/health/ready`,
   `/health/llm`) are plain HTTP/2 GETs, not protos - **not part of the SDK
   for now**.
@@ -385,6 +404,12 @@ Verified against a running Manager (2026-09-28):
   ignored when those are missing. Use a dedicated test tenant.
   - Every test deletes exactly what it created (`IntegrationTest` tracks the
     ids) - never delete by listing (global documents are visible, see above).
+    Cleanup survives the rate limiter, keeps going after a failed delete and
+    fails the test with the leftover ids, so nothing is left behind silently.
+  - The test `Client` runs on its own `GrpcChannel` (exercising the
+    external-channel constructor) with a retry policy for
+    `ResourceExhausted`; `grpc-retry-pushback-ms` makes it wait exactly until
+    the next rate-limit window.
   - Uploads get a unique content marker (duplicate-content rule).
   - Category `Llm` (`ChatTests`) calls the model, is slow and costs tokens.
     It needs the configured chat model to be available in the Manager's LLM
@@ -435,10 +460,14 @@ into the sections above. Keep the order unless the owner says otherwise.
   (LLM generation); reverse proxies drop idle connections. Configure
   `SocketsHttpHandler.KeepAlivePingDelay/Timeout` on the owned channel.
   Invisible to users.
-- [ ] **7. Retry on transient errors.** gRPC retry policy for `Unavailable`.
-  **Never** for non-idempotent calls (`SendMessage`, `Upload*`, `Start*`,
-  `Link*`) - a retry would duplicate messages and token costs. At most for
-  read-only calls, and only as an opt-in option.
+- [ ] **7. Retry on transient errors.** Rate-limit rejections
+  (`ResourceExhausted` / `RateLimit.Exceeded`) are safe to retry for **every**
+  call (nothing was processed) and carry `grpc-retry-pushback-ms` - an opt-in
+  retry for exactly these is low-risk (the integration tests already do it via
+  a channel retry policy). `Unavailable` is different: the call may or may not
+  have been processed, so **never** retry it for non-idempotent calls
+  (`SendMessage`, `Upload*`, `Start*`, `Link*`) - that would duplicate
+  messages and token costs.
 - [ ] **8. Optional logging.** `ILoggerFactory` on `MentisClientOptions`,
   passed to `GrpcChannelOptions.LoggerFactory`. No new mandatory dependency
   beyond `Microsoft.Extensions.Logging.Abstractions`.

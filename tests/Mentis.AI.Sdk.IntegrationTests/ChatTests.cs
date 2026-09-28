@@ -7,6 +7,12 @@ public class ChatTests : IntegrationTest
     [Test]
     public async Task SendMessage_AnswersWithCitations()
     {
+        TenantUsage usage = await Client.Billing.GetUsageAsync(cancellationToken: Timeout);
+        if (usage.MonthlyTokenLimit is { } limit && usage.TotalTokens >= limit)
+        {
+            Assert.Ignore($"The test tenant's monthly token limit ({limit}) is used up - raise it to run chat tests.");
+        }
+
         Document document = await UploadTextAsync(
             "Contoso travel policy: hotel costs are reimbursed up to 150 EUR per night.",
             "Contoso Travel Policy");

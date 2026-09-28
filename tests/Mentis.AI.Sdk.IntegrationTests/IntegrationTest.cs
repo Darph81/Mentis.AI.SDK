@@ -1,5 +1,9 @@
 using System.Text;
 
+using Grpc.Core;
+using Grpc.Net.Client;
+using Grpc.Net.Client.Configuration;
+
 namespace Mentis.AI.Sdk.IntegrationTests;
 
 /// <summary>
@@ -23,7 +27,15 @@ public abstract class IntegrationTest
     /// <summary>The tenant the API key belongs to (the part before the first dot).</summary>
     protected Guid TenantId => Guid.Parse(ApiKey[..ApiKey.IndexOf('.', StringComparison.Ordinal)]);
 
+    /// <summary>
+    /// Client on a channel that retries <c>ResourceExhausted</c> - the Manager's per-tenant rate limiter
+    /// (100 requests/minute by default; a full test run gets close). The Manager sends
+    /// <c>grpc-retry-pushback-ms</c>, so the retry waits exactly until the next window. Rate-limited calls
+    /// were never processed, so retrying them is safe even for uploads and messages.
+    /// </summary>
     protected MentisClient Client { get; private set; } = null!;
+
+    private GrpcChannel? _channel;
 
     /// <summary>Cancels a test that hangs; LLM tests use a longer budget.</summary>
     protected CancellationToken Timeout { get; private set; }
@@ -43,36 +55,76 @@ public abstract class IntegrationTest
 
         Endpoint = new Uri(endpoint);
         ApiKey = apiKey;
-        Client = new MentisClient(new MentisClientOptions { Endpoint = Endpoint, ApiKey = ApiKey });
+        _channel = GrpcChannel.ForAddress(Endpoint, new GrpcChannelOptions
+        {
+            ThrowOperationCanceledOnCancellation = true,
+            ServiceConfig = new ServiceConfig
+            {
+                MethodConfigs =
+                {
+                    new MethodConfig
+                    {
+                        Names = { MethodName.Default },
+                        RetryPolicy = new RetryPolicy
+                        {
+                            // Backoff only applies if the server sends no retry pushback.
+                            MaxAttempts = 3,
+                            InitialBackoff = TimeSpan.FromSeconds(10),
+                            MaxBackoff = TimeSpan.FromSeconds(60),
+                            BackoffMultiplier = 2,
+                            RetryableStatusCodes = { StatusCode.ResourceExhausted },
+                        },
+                    },
+                },
+            },
+        });
+        Client = new MentisClient(_channel, new MentisClientOptions { ApiKey = ApiKey });
     }
 
     [OneTimeTearDown]
-    public void OneTimeTearDownClient() => Client?.Dispose();
+    public void OneTimeTearDownClient()
+    {
+        Client?.Dispose();
+        _channel?.Dispose();
+    }
 
     [SetUp]
     public void SetUpTimeout()
     {
         bool isLlmTest = TestContext.CurrentContext.Test.Properties["Category"].Contains("Llm");
-        _timeoutSource = new CancellationTokenSource(isLlmTest ? TimeSpan.FromMinutes(5) : TimeSpan.FromMinutes(1));
+        _timeoutSource = new CancellationTokenSource(isLlmTest ? TimeSpan.FromMinutes(5) : TimeSpan.FromMinutes(3));
         Timeout = _timeoutSource.Token;
     }
 
     [TearDown]
     public async Task TearDownAsync()
     {
+        var leftovers = new List<string>();
+
         foreach ((IConversationsClient client, Guid id) in _conversations)
         {
-            await IgnoreNotFoundAsync(() => client.DeleteAsync(id));
+            if (!await TryDeleteAsync(() => client.DeleteAsync(id)))
+            {
+                leftovers.Add($"conversation {id}");
+            }
         }
 
         foreach (Guid id in _documentIds)
         {
-            await IgnoreNotFoundAsync(() => Client.Documents.DeleteAsync(id));
+            if (!await TryDeleteAsync(() => Client.Documents.DeleteAsync(id)))
+            {
+                leftovers.Add($"document {id}");
+            }
         }
 
         _conversations.Clear();
         _documentIds.Clear();
         _timeoutSource?.Dispose();
+
+        if (leftovers.Count > 0)
+        {
+            Assert.Fail($"Cleanup failed, delete manually: {string.Join(", ", leftovers)}");
+        }
     }
 
     /// <summary>
@@ -101,15 +153,34 @@ public abstract class IntegrationTest
 
     protected static string UniqueTitle() => $"sdk-it-{Guid.NewGuid():N}";
 
-    private static async Task IgnoreNotFoundAsync(Func<Task> delete)
+    /// <summary>
+    /// Deletes one resource. <c>NotFound</c> counts as success (the test already deleted it).
+    /// A rate-limit rejection that outlasts the channel's own retries is retried here once more, so a busy
+    /// test run never leaves data behind.
+    /// </summary>
+    private static async Task<bool> TryDeleteAsync(Func<Task> delete)
     {
-        try
+        for (int attempt = 1; ; attempt++)
         {
-            await delete();
-        }
-        catch (MentisException ex) when (ex.StatusCode == Grpc.Core.StatusCode.NotFound)
-        {
-            // Already deleted by the test itself.
+            try
+            {
+                await delete();
+                return true;
+            }
+            catch (MentisException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                return true;
+            }
+            catch (MentisException ex) when (ex.ErrorCode == "RateLimit.Exceeded" && attempt < 2)
+            {
+                TestContext.Out.WriteLine("Rate limited during cleanup, retrying in 60 s.");
+                await Task.Delay(TimeSpan.FromSeconds(60));
+            }
+            catch (MentisException ex)
+            {
+                TestContext.Out.WriteLine($"Cleanup failed: {ex.StatusCode} {ex.Message}");
+                return false;
+            }
         }
     }
 
