@@ -7,7 +7,8 @@ retrieval-augmented chat.
 The SDK wraps the Manager's gRPC API in a small, idiomatic C# surface:
 plain records instead of generated protobuf types, `DateTimeOffset`
 instead of `Timestamp`, nullable values instead of proto `optional`, and a
-single exception type for every server error.
+single exception type for every server error. Every id (documents,
+conversations, messages, tenants, end users) is a `Guid`.
 
 > **Status:** early development (0.x) - the API may still change.
 
@@ -41,7 +42,7 @@ using Mentis.AI.Sdk;
 await using var client = new MentisClient(new MentisClientOptions
 {
     Endpoint = new Uri("http://localhost:8080"),
-    TenantId = "3f2c9a1e-...",
+    TenantId = Guid.Parse("3f2c9a1e-..."),
     Secret   = "your-tenant-secret",
 });
 
@@ -78,7 +79,7 @@ credentials. They are sent with every call - no request takes a tenant id.
 ```csharp
 builder.Services.AddMentisClient(
     endpoint: new Uri(builder.Configuration["Mentis:Endpoint"]!),
-    tenantId: builder.Configuration["Mentis:TenantId"]!,
+    tenantId: Guid.Parse(builder.Configuration["Mentis:TenantId"]!),
     secret:   builder.Configuration["Mentis:Secret"]!);
 
 // Optional further settings
@@ -175,7 +176,7 @@ tenant) or owned by a specific **end user** of your application:
 
 ```csharp
 var shared = client.Conversations;                  // tenant-global
-var alice  = client.Conversations.ForUser(aliceUserId); // only Alice's conversations (id must be a GUID)
+var alice  = client.Conversations.ForUser(aliceUserId); // only Alice's conversations (aliceUserId is a Guid)
 
 var chat = await alice.StartAsync("Onboarding");
 await alice.LinkDocumentsAsync(chat.Id, [doc.Id, doc2.Id]);
@@ -209,7 +210,7 @@ using Grpc.Core; // StatusCode
 
 try
 {
-    await client.Documents.GetAsync("unknown-id");
+    await client.Documents.GetAsync(documentId);
 }
 catch (MentisException ex) when (ex.StatusCode == StatusCode.NotFound)
 {

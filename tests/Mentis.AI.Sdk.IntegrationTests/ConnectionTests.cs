@@ -9,7 +9,7 @@ public class ConnectionTests : IntegrationTest
     {
         TenantUsage usage = await Client.Billing.GetUsageAsync(cancellationToken: Timeout);
 
-        usage.TenantId.ShouldBe(ApiKey[..ApiKey.IndexOf('.', StringComparison.Ordinal)]);
+        usage.TenantId.ShouldBe(TenantId);
         usage.Year.ShouldBe(DateTime.UtcNow.Year);
         usage.Month.ShouldBe(DateTime.UtcNow.Month);
     }
@@ -25,11 +25,10 @@ public class ConnectionTests : IntegrationTest
     [Test]
     public async Task WrongSecret_ThrowsUnauthenticated()
     {
-        string tenantId = ApiKey[..ApiKey.IndexOf('.', StringComparison.Ordinal)];
         await using var client = new MentisClient(new MentisClientOptions
         {
             Endpoint = Endpoint,
-            TenantId = tenantId,
+            TenantId = TenantId,
             Secret = "definitely-not-the-secret",
         });
 

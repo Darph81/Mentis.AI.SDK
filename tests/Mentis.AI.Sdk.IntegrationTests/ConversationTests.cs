@@ -45,7 +45,7 @@ public class ConversationTests : IntegrationTest
     public async Task StartWithUnknownDocument_ThrowsNotFound()
     {
         MentisException ex = await Should.ThrowAsync<MentisException>(
-            () => Client.Conversations.StartAsync(UniqueTitle(), [Guid.NewGuid().ToString()], Timeout));
+            () => Client.Conversations.StartAsync(UniqueTitle(), [Guid.NewGuid()], Timeout));
 
         ex.StatusCode.ShouldBe(StatusCode.NotFound);
     }
@@ -53,8 +53,8 @@ public class ConversationTests : IntegrationTest
     [Test]
     public async Task UserScopedConversation_IsOnlyVisibleToThatUser()
     {
-        IConversationsClient alice = Client.Conversations.ForUser(Guid.NewGuid().ToString());
-        IConversationsClient bob = Client.Conversations.ForUser(Guid.NewGuid().ToString());
+        IConversationsClient alice = Client.Conversations.ForUser(Guid.NewGuid());
+        IConversationsClient bob = Client.Conversations.ForUser(Guid.NewGuid());
 
         Conversation owned = await StartConversationAsync(alice);
         owned.OwnerUserId.ShouldBe(alice.UserId);
@@ -68,7 +68,7 @@ public class ConversationTests : IntegrationTest
     public async Task TenantGlobalConversation_IsVisibleToEveryUser()
     {
         Conversation shared = await StartConversationAsync(Client.Conversations);
-        IConversationsClient alice = Client.Conversations.ForUser(Guid.NewGuid().ToString());
+        IConversationsClient alice = Client.Conversations.ForUser(Guid.NewGuid());
 
         (await alice.GetAsync(shared.Id, Timeout)).Id.ShouldBe(shared.Id);
     }

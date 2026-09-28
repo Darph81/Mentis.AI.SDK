@@ -39,11 +39,11 @@ public interface IDocumentsClient
 
     /// <summary>Gets a document by id.</summary>
     /// <exception cref="MentisException">With <c>NotFound</c> if the document does not exist or is not visible.</exception>
-    Task<Document> GetAsync(string documentId, CancellationToken cancellationToken = default);
+    Task<Document> GetAsync(Guid documentId, CancellationToken cancellationToken = default);
 
     /// <summary>Gets several documents by id in one call.</summary>
     Task<IReadOnlyList<Document>> GetManyAsync(
-        IEnumerable<string> documentIds,
+        IEnumerable<Guid> documentIds,
         CancellationToken cancellationToken = default);
 
     /// <summary>Lists one page of documents.</summary>
@@ -71,13 +71,13 @@ public interface IDocumentsClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Changes the title of a document.</summary>
-    Task<Document> RenameAsync(string documentId, string newTitle, CancellationToken cancellationToken = default);
+    Task<Document> RenameAsync(Guid documentId, string newTitle, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes a document.</summary>
-    Task DeleteAsync(string documentId, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes several documents in one call.</summary>
-    Task DeleteManyAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
+    Task DeleteManyAsync(IEnumerable<Guid> documentIds, CancellationToken cancellationToken = default);
 
     /// <summary>Semantic search over the chunks of ready documents.</summary>
     /// <param name="query">The search text.</param>
@@ -86,12 +86,12 @@ public interface IDocumentsClient
     /// <param name="cancellationToken">Cancels the operation.</param>
     Task<IReadOnlyList<DocumentSearchResult>> SearchAsync(
         string query,
-        IEnumerable<string>? documentIds = null,
+        IEnumerable<Guid>? documentIds = null,
         int? topK = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Downloads the original file of a document.</summary>
-    Task<DocumentContent> GetContentAsync(string documentId, CancellationToken cancellationToken = default);
+    Task<DocumentContent> GetContentAsync(Guid documentId, CancellationToken cancellationToken = default);
 
     /// <summary>Lists one page of the chunks a document was split into.</summary>
     /// <param name="documentId">The document.</param>
@@ -99,13 +99,13 @@ public interface IDocumentsClient
     /// <param name="pageSize">Items per page; the server defaults to 50.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     Task<PagedResult<DocumentChunk>> GetChunksAsync(
-        string documentId,
+        Guid documentId,
         int? pageNumber = null,
         int? pageSize = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Queues a failed document for processing again.</summary>
-    Task<Document> RetryProcessingAsync(string documentId, CancellationToken cancellationToken = default);
+    Task<Document> RetryProcessingAsync(Guid documentId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Polls a document until processing has finished, i.e. its status is
@@ -116,7 +116,7 @@ public interface IDocumentsClient
     /// <param name="cancellationToken">Cancels waiting - use a timed token source to limit the wait.</param>
     /// <returns>The document in its final state. Check <see cref="Document.Status"/> for failure.</returns>
     Task<Document> WaitUntilProcessedAsync(
-        string documentId,
+        Guid documentId,
         TimeSpan? pollInterval = null,
         CancellationToken cancellationToken = default);
 }

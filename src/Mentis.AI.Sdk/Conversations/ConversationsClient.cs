@@ -9,31 +9,26 @@ internal sealed class ConversationsClient : IConversationsClient
 {
     private readonly Proto.ConversationService.ConversationServiceClient _client;
 
-    internal ConversationsClient(Proto.ConversationService.ConversationServiceClient client, string? userId = null)
+    internal ConversationsClient(Proto.ConversationService.ConversationServiceClient client, Guid? userId = null)
     {
         _client = client;
         UserId = userId;
     }
 
     /// <inheritdoc />
-    public string? UserId { get; }
+    public Guid? UserId { get; }
 
     /// <inheritdoc />
-    public IConversationsClient ForUser(string userId)
+    public IConversationsClient ForUser(Guid userId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
-        if (!Guid.TryParse(userId, out _))
-        {
-            throw new ArgumentException("The Manager requires the end-user id to be a GUID.", nameof(userId));
-        }
-
+        Ids.ThrowIfEmpty(userId);
         return new ConversationsClient(_client, userId);
     }
 
     /// <inheritdoc />
     public async Task<Conversation> StartAsync(
         string title,
-        IEnumerable<string>? documentIds = null,
+        IEnumerable<Guid>? documentIds = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -41,12 +36,12 @@ internal sealed class ConversationsClient : IConversationsClient
         var request = new Proto.StartConversationRequest { Title = title };
         if (documentIds is not null)
         {
-            request.InitialDocumentIds.AddRange(documentIds);
+            request.InitialDocumentIds.AddRange(Ids.ToWire(documentIds));
         }
 
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.StartConversationResponse response = await RpcInvoker.InvokeAsync(
@@ -56,14 +51,14 @@ internal sealed class ConversationsClient : IConversationsClient
     }
 
     /// <inheritdoc />
-    public async Task<Conversation> GetAsync(string conversationId, CancellationToken cancellationToken = default)
+    public async Task<Conversation> GetAsync(Guid conversationId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+        Ids.ThrowIfEmpty(conversationId);
 
-        var request = new Proto.GetConversationByIdRequest { ConversationId = conversationId };
+        var request = new Proto.GetConversationByIdRequest { ConversationId = conversationId.ToString() };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.GetConversationByIdResponse response = await RpcInvoker.InvokeAsync(
@@ -74,16 +69,14 @@ internal sealed class ConversationsClient : IConversationsClient
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ConversationSummary>> GetManyAsync(
-        IEnumerable<string> conversationIds,
+        IEnumerable<Guid> conversationIds,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(conversationIds);
-
         var request = new Proto.GetConversationsByIdsRequest();
-        request.ConversationIds.AddRange(conversationIds);
+        request.ConversationIds.AddRange(Ids.ToWire(conversationIds));
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.GetConversationsByIdsResponse response = await RpcInvoker.InvokeAsync(
@@ -109,7 +102,7 @@ internal sealed class ConversationsClient : IConversationsClient
         };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.ListConversationsResponse response = await RpcInvoker.InvokeAsync(
@@ -140,15 +133,15 @@ internal sealed class ConversationsClient : IConversationsClient
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ConversationSummary>> GetLinkedToDocumentAsync(
-        string documentId,
+        Guid documentId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(documentId);
 
-        var request = new Proto.GetConversationsLinkedToDocumentRequest { DocumentId = documentId };
+        var request = new Proto.GetConversationsLinkedToDocumentRequest { DocumentId = documentId.ToString() };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.GetConversationsLinkedToDocumentResponse response = await RpcInvoker.InvokeAsync(
@@ -159,17 +152,17 @@ internal sealed class ConversationsClient : IConversationsClient
 
     /// <inheritdoc />
     public async Task<Conversation> RenameAsync(
-        string conversationId,
+        Guid conversationId,
         string newTitle,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+        Ids.ThrowIfEmpty(conversationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(newTitle);
 
-        var request = new Proto.RenameConversationRequest { ConversationId = conversationId, NewTitle = newTitle };
+        var request = new Proto.RenameConversationRequest { ConversationId = conversationId.ToString(), NewTitle = newTitle };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.RenameConversationResponse response = await RpcInvoker.InvokeAsync(
@@ -179,14 +172,14 @@ internal sealed class ConversationsClient : IConversationsClient
     }
 
     /// <inheritdoc />
-    public async Task DeleteAsync(string conversationId, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(Guid conversationId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+        Ids.ThrowIfEmpty(conversationId);
 
-        var request = new Proto.DeleteConversationRequest { ConversationId = conversationId };
+        var request = new Proto.DeleteConversationRequest { ConversationId = conversationId.ToString() };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         await RpcInvoker.InvokeAsync(
@@ -196,17 +189,17 @@ internal sealed class ConversationsClient : IConversationsClient
 
     /// <inheritdoc />
     public async Task LinkDocumentAsync(
-        string conversationId,
-        string documentId,
+        Guid conversationId,
+        Guid documentId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(conversationId);
+        Ids.ThrowIfEmpty(documentId);
 
-        var request = new Proto.LinkDocumentToConversationRequest { ConversationId = conversationId, DocumentId = documentId };
+        var request = new Proto.LinkDocumentToConversationRequest { ConversationId = conversationId.ToString(), DocumentId = documentId.ToString() };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         await RpcInvoker.InvokeAsync(
@@ -216,18 +209,16 @@ internal sealed class ConversationsClient : IConversationsClient
 
     /// <inheritdoc />
     public async Task LinkDocumentsAsync(
-        string conversationId,
-        IEnumerable<string> documentIds,
+        Guid conversationId,
+        IEnumerable<Guid> documentIds,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
-        ArgumentNullException.ThrowIfNull(documentIds);
-
-        var request = new Proto.LinkDocumentsToConversationRequest { ConversationId = conversationId };
-        request.DocumentIds.AddRange(documentIds);
+        Ids.ThrowIfEmpty(conversationId);
+        var request = new Proto.LinkDocumentsToConversationRequest { ConversationId = conversationId.ToString() };
+        request.DocumentIds.AddRange(Ids.ToWire(documentIds));
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         await RpcInvoker.InvokeAsync(
@@ -237,17 +228,17 @@ internal sealed class ConversationsClient : IConversationsClient
 
     /// <inheritdoc />
     public async Task UnlinkDocumentAsync(
-        string conversationId,
-        string documentId,
+        Guid conversationId,
+        Guid documentId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(conversationId);
+        Ids.ThrowIfEmpty(documentId);
 
-        var request = new Proto.UnlinkDocumentFromConversationRequest { ConversationId = conversationId, DocumentId = documentId };
+        var request = new Proto.UnlinkDocumentFromConversationRequest { ConversationId = conversationId.ToString(), DocumentId = documentId.ToString() };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         await RpcInvoker.InvokeAsync(
@@ -257,16 +248,16 @@ internal sealed class ConversationsClient : IConversationsClient
 
     /// <inheritdoc />
     public async Task<ChatMessage> SendMessageAsync(
-        string conversationId,
+        Guid conversationId,
         string content,
         string? model = null,
         string? odataSecret = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+        Ids.ThrowIfEmpty(conversationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
 
-        var request = new Proto.SendMessageRequest { ConversationId = conversationId, Content = content };
+        var request = new Proto.SendMessageRequest { ConversationId = conversationId.ToString(), Content = content };
         if (!string.IsNullOrWhiteSpace(model))
         {
             request.Model = model;
@@ -279,7 +270,7 @@ internal sealed class ConversationsClient : IConversationsClient
 
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.SendMessageResponse response = await RpcInvoker.InvokeAsync(
@@ -290,25 +281,25 @@ internal sealed class ConversationsClient : IConversationsClient
 
     /// <inheritdoc />
     public async Task<PagedResult<ChatMessage>> ListMessagesAsync(
-        string conversationId,
+        Guid conversationId,
         int? pageNumber = null,
         int? pageSize = null,
         MessageRole? role = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+        Ids.ThrowIfEmpty(conversationId);
         Paging.ValidatePaging(pageNumber, pageSize);
 
         var request = new Proto.ListMessagesRequest
         {
-            ConversationId = conversationId,
+            ConversationId = conversationId.ToString(),
             PageNumber = pageNumber ?? 0,
             PageSize = pageSize ?? 0,
             RoleFilter = (Proto.MessageRole)(role ?? MessageRole.Unknown),
         };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.ListMessagesResponse response = await RpcInvoker.InvokeAsync(
@@ -325,14 +316,14 @@ internal sealed class ConversationsClient : IConversationsClient
     }
 
     /// <inheritdoc />
-    public async Task<string> ExportMarkdownAsync(string conversationId, CancellationToken cancellationToken = default)
+    public async Task<string> ExportMarkdownAsync(Guid conversationId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+        Ids.ThrowIfEmpty(conversationId);
 
-        var request = new Proto.ExportConversationRequest { ConversationId = conversationId };
+        var request = new Proto.ExportConversationRequest { ConversationId = conversationId.ToString() };
         if (UserId is not null)
         {
-            request.UserId = UserId;
+            request.UserId = UserId.Value.ToString();
         }
 
         Proto.ExportConversationResponse response = await RpcInvoker.InvokeAsync(

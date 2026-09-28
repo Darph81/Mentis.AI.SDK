@@ -60,7 +60,7 @@ src/Mentis.AI.Sdk/
   Conversations/                 IConversationsClient + ConversationsClient (internal) + models
   Billing/                       IBillingClient + BillingClient (internal) + models
   Errors/                        MentisException + RpcException translation
-  Internal/                      ProtoMapper, MentisCallInterceptor, RpcInvoker, Paging
+  Internal/                      ProtoMapper, Ids, MentisCallInterceptor, RpcInvoker, Paging
   DependencyInjection/           AddMentisClient() extension
 tests/Mentis.AI.Sdk.Tests/       unit tests (mocked gRPC clients)
 tests/Mentis.AI.Sdk.IntegrationTests/  tests against a real Manager (see Testing)
@@ -168,8 +168,8 @@ Most conversation RPCs take an optional `user_id` (Phase 69 in the Manager):
 set → conversation owned by that end user; unset → **tenant-global**
 conversation visible to all users of the tenant. The id is supplied by the
 upstream system and never checked against anything - but it **must be a
-GUID** (the Manager answers `InvalidArgument` otherwise, verified). `ForUser`
-therefore validates the format client-side.
+GUID** (the Manager answers `InvalidArgument` otherwise, verified), which is
+why `ForUser` takes a `Guid`.
 
 Visibility (verified): a user-owned conversation is visible only to that
 user - not to other users and not to the tenant-global client. Tenant-global
@@ -185,6 +185,22 @@ var alice  = client.Conversations.ForUser(aliceUserId); // scoped to end user (G
 
 `ForUser` returns a lightweight new `ConversationsClient` over the same
 channel.
+
+### Every id is a `Guid`
+
+All Manager ids are GUIDs (document, chunk, conversation, message, tenant,
+end user - they are `Guid`-backed value objects in the Manager's domain). The
+public API therefore uses `Guid` for every id - parameters, model properties,
+`IReadOnlyList<Guid>` for id lists, `Guid?` for optional ids - and never
+`string`. Owner's decision: a malformed id string would only surface as the
+Manager's meaningless `Internal: "An unexpected error occurred."`.
+
+- Converted to/from the wire in one place: `Internal/Ids.cs` (argument
+  checks, `ToWire`) and `ProtoMapper.ParseId`/`ParseOptionalId`.
+- `Guid.Empty` is rejected at the public boundary with `ArgumentException`
+  (`Ids.ThrowIfEmpty`, also for every element of an id list).
+- The credential stays a string (`ApiKey` = `<tenantId>.<secret>`);
+  `MentisClientOptions.TenantId` is a `Guid?`.
 
 ### Configuration is set once
 
@@ -307,8 +323,8 @@ Verified against a running Manager (2026-09-28):
 
 - **All ids are GUIDs** (document, conversation, user). The Manager parses
   document/conversation ids with `Guid.Parse`; a malformed id surfaces as
-  `Internal: "An unexpected error occurred."` - no useful message. The SDK
-  currently passes ids through as strings (open decision, see roadmap).
+  `Internal: "An unexpected error occurred."` - no useful message. Hence
+  `Guid` everywhere in the SDK (see "Every id is a `Guid`").
 - **Duplicate content is rejected across all tenants**: uploading bytes
   identical to any existing document fails with `FailedPrecondition`
   / `Document.DuplicateContent` (message contains the existing id).
@@ -385,10 +401,10 @@ into the sections above. Keep the order unless the owner says otherwise.
     "Verified against a running Manager").
   - [ ] Chat (`SendMessage`, category `Llm`) - blocked until the chat model
     is available in the local Ollama.
-  - [ ] Decide: id parameters as `Guid` instead of `string` (malformed ids
-    currently end as a meaningless `Internal` error).
-  - [ ] Decide: tolerate the Manager's transient `NotFound` in
-    `WaitUntilProcessedAsync`, or rely on a Manager fix.
+  - [x] Ids are `Guid` throughout the public API (owner's decision).
+  - [x] Transient `NotFound` during processing: fixed in the Manager
+    (transactional `UpdateAsync`), **no SDK workaround** (owner's decision).
+    Re-run the integration tests once the Manager fix is deployed.
 - [ ] **2. Proto drift check.** Script (and later CI step) that compares
   `src/Mentis.AI.Sdk/Protos/*.proto` with the Manager's copies
   (`../SmartAI.Manager/src/Mentis.AI.Contracts/Protos/`), ignoring only the

@@ -25,15 +25,15 @@ public class ConversationsClientTests
         _grpc.StartConversationAsync(Arg.Do<Proto.StartConversationRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.StartConversationResponse
             {
-                Conversation = new Proto.Conversation { Id = "c1", Title = "Chat", TenantId = "t1", LinkedDocumentIds = { "d1" } },
+                Conversation = new Proto.Conversation { Id = TestIds.Conversation1.ToString(), Title = "Chat", TenantId = TestIds.Tenant1.ToString(), LinkedDocumentIds = { TestIds.Document1.ToString() } },
             }));
 
-        Conversation conversation = await _client.StartAsync("Chat", ["d1"]);
+        Conversation conversation = await _client.StartAsync("Chat", [TestIds.Document1]);
 
         sent!.HasUserId.ShouldBeFalse();
-        sent.InitialDocumentIds.ShouldBe(["d1"]);
+        sent.InitialDocumentIds.ShouldBe([TestIds.Document1.ToString()]);
         conversation.OwnerUserId.ShouldBeNull();
-        conversation.LinkedDocumentIds.ShouldBe(["d1"]);
+        conversation.LinkedDocumentIds.ShouldBe([TestIds.Document1]);
     }
 
     [Test]
@@ -42,20 +42,19 @@ public class ConversationsClientTests
         Proto.StartConversationRequest? start = null;
         Proto.DeleteConversationRequest? delete = null;
         _grpc.StartConversationAsync(Arg.Do<Proto.StartConversationRequest>(r => start = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
-            .Returns(GrpcTestCalls.Success(new Proto.StartConversationResponse { Conversation = new Proto.Conversation { Id = "c1", OwnerUserId = "5c3e8a4e-2f7b-4a51-9f0e-6f1d2b3c4d5e" } }));
+            .Returns(GrpcTestCalls.Success(new Proto.StartConversationResponse { Conversation = new Proto.Conversation { Id = TestIds.Conversation1.ToString(), OwnerUserId = TestIds.User1.ToString() } }));
         _grpc.DeleteConversationAsync(Arg.Do<Proto.DeleteConversationRequest>(r => delete = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.DeleteConversationResponse()));
 
-        const string aliceId = "5c3e8a4e-2f7b-4a51-9f0e-6f1d2b3c4d5e";
-        IConversationsClient alice = _client.ForUser(aliceId);
+        IConversationsClient alice = _client.ForUser(TestIds.User1);
         Conversation conversation = await alice.StartAsync("Chat");
-        await alice.DeleteAsync("c1");
+        await alice.DeleteAsync(TestIds.Conversation1);
 
-        alice.UserId.ShouldBe(aliceId);
+        alice.UserId.ShouldBe(TestIds.User1);
         _client.UserId.ShouldBeNull();
-        start!.UserId.ShouldBe(aliceId);
-        delete!.UserId.ShouldBe(aliceId);
-        conversation.OwnerUserId.ShouldBe(aliceId);
+        start!.UserId.ShouldBe(TestIds.User1.ToString());
+        delete!.UserId.ShouldBe(TestIds.User1.ToString());
+        conversation.OwnerUserId.ShouldBe(TestIds.User1);
     }
 
     [Test]
@@ -67,18 +66,18 @@ public class ConversationsClientTests
             {
                 Message = new Proto.ChatMessage
                 {
-                    Id = "m1",
+                    Id = TestIds.Message1.ToString(),
                     Role = Proto.MessageRole.Assistant,
                     Content = "20 days.",
                     Citations =
                     {
-                        new Proto.Citation { DocumentId = "d1", ChunkId = "k1", Snippet = "20 days", DocumentTitle = "Handbook" },
-                        new Proto.Citation { DocumentId = "d2", ChunkId = "k2", Snippet = "other" },
+                        new Proto.Citation { DocumentId = TestIds.Document1.ToString(), ChunkId = TestIds.Chunk1.ToString(), Snippet = "20 days", DocumentTitle = "Handbook" },
+                        new Proto.Citation { DocumentId = TestIds.Document2.ToString(), ChunkId = TestIds.Chunk2.ToString(), Snippet = "other" },
                     },
                 },
             }));
 
-        ChatMessage answer = await _client.SendMessageAsync("c1", "Vacation?", model: "llama3", odataSecret: "s3cret");
+        ChatMessage answer = await _client.SendMessageAsync(TestIds.Conversation1, "Vacation?", model: "llama3", odataSecret: "s3cret");
 
         sent!.Model.ShouldBe("llama3");
         sent.OdataSecret.ShouldBe("s3cret");
@@ -86,6 +85,8 @@ public class ConversationsClientTests
         answer.Role.ShouldBe(MessageRole.Assistant);
         answer.Citations[0].DocumentTitle.ShouldBe("Handbook");
         answer.Citations[1].DocumentTitle.ShouldBeNull();
+        answer.Citations[0].DocumentId.ShouldBe(TestIds.Document1);
+        answer.Citations[0].ChunkId.ShouldBe(TestIds.Chunk1);
     }
 
     [Test]
@@ -93,9 +94,9 @@ public class ConversationsClientTests
     {
         Proto.SendMessageRequest? sent = null;
         _grpc.SendMessageAsync(Arg.Do<Proto.SendMessageRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
-            .Returns(GrpcTestCalls.Success(new Proto.SendMessageResponse { Message = new Proto.ChatMessage { Id = "m1" } }));
+            .Returns(GrpcTestCalls.Success(new Proto.SendMessageResponse { Message = new Proto.ChatMessage { Id = TestIds.Message1.ToString() } }));
 
-        await _client.SendMessageAsync("c1", "Hi");
+        await _client.SendMessageAsync(TestIds.Conversation1, "Hi");
 
         sent!.HasModel.ShouldBeFalse();
         sent.HasOdataSecret.ShouldBeFalse();
@@ -108,7 +109,7 @@ public class ConversationsClientTests
         _grpc.ListMessagesAsync(Arg.Do<Proto.ListMessagesRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.ListMessagesResponse { TotalCount = 0, PageNumber = 1, PageSize = 50 }));
 
-        PagedResult<ChatMessage> page = await _client.ListMessagesAsync("c1", role: MessageRole.User);
+        PagedResult<ChatMessage> page = await _client.ListMessagesAsync(TestIds.Conversation1, role: MessageRole.User);
 
         sent!.RoleFilter.ShouldBe(Proto.MessageRole.User);
         sent.PageNumber.ShouldBe(0);
@@ -122,7 +123,7 @@ public class ConversationsClientTests
         _grpc.ExportConversationAsync(Arg.Any<Proto.ExportConversationRequest>(), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.ExportConversationResponse { Markdown = "# Chat" }));
 
-        string markdown = await _client.ExportMarkdownAsync("c1");
+        string markdown = await _client.ExportMarkdownAsync(TestIds.Conversation1);
 
         markdown.ShouldBe("# Chat");
     }
@@ -130,12 +131,6 @@ public class ConversationsClientTests
     [Test]
     public void ForUser_EmptyUserId_Throws()
     {
-        Should.Throw<ArgumentException>(() => _client.ForUser(""));
-    }
-
-    [Test]
-    public void ForUser_NonGuidUserId_Throws()
-    {
-        Should.Throw<ArgumentException>(() => _client.ForUser("alice"));
+        Should.Throw<ArgumentException>(() => _client.ForUser(Guid.Empty));
     }
 }

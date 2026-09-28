@@ -75,25 +75,23 @@ internal sealed class DocumentsClient : IDocumentsClient
     }
 
     /// <inheritdoc />
-    public async Task<Document> GetAsync(string documentId, CancellationToken cancellationToken = default)
+    public async Task<Document> GetAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(documentId);
 
         Proto.GetDocumentByIdResponse response = await RpcInvoker.InvokeAsync(
-            _client.GetDocumentByIdAsync(new Proto.GetDocumentByIdRequest { DocumentId = documentId }, cancellationToken: cancellationToken),
+            _client.GetDocumentByIdAsync(new Proto.GetDocumentByIdRequest { DocumentId = documentId.ToString() }, cancellationToken: cancellationToken),
             cancellationToken).ConfigureAwait(false);
         return response.Document.ToModel();
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<Document>> GetManyAsync(
-        IEnumerable<string> documentIds,
+        IEnumerable<Guid> documentIds,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(documentIds);
-
         var request = new Proto.GetDocumentsByIdsRequest();
-        request.DocumentIds.AddRange(documentIds);
+        request.DocumentIds.AddRange(Ids.ToWire(documentIds));
 
         Proto.GetDocumentsByIdsResponse response = await RpcInvoker.InvokeAsync(
             _client.GetDocumentsByIdsAsync(request, cancellationToken: cancellationToken),
@@ -148,14 +146,14 @@ internal sealed class DocumentsClient : IDocumentsClient
 
     /// <inheritdoc />
     public async Task<Document> RenameAsync(
-        string documentId,
+        Guid documentId,
         string newTitle,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(documentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(newTitle);
 
-        var request = new Proto.RenameDocumentRequest { DocumentId = documentId, NewTitle = newTitle };
+        var request = new Proto.RenameDocumentRequest { DocumentId = documentId.ToString(), NewTitle = newTitle };
         Proto.RenameDocumentResponse response = await RpcInvoker.InvokeAsync(
             _client.RenameDocumentAsync(request, cancellationToken: cancellationToken),
             cancellationToken).ConfigureAwait(false);
@@ -163,22 +161,20 @@ internal sealed class DocumentsClient : IDocumentsClient
     }
 
     /// <inheritdoc />
-    public async Task DeleteAsync(string documentId, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(documentId);
 
         await RpcInvoker.InvokeAsync(
-            _client.DeleteDocumentAsync(new Proto.DeleteDocumentRequest { DocumentId = documentId }, cancellationToken: cancellationToken),
+            _client.DeleteDocumentAsync(new Proto.DeleteDocumentRequest { DocumentId = documentId.ToString() }, cancellationToken: cancellationToken),
             cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task DeleteManyAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
+    public async Task DeleteManyAsync(IEnumerable<Guid> documentIds, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(documentIds);
-
         var request = new Proto.DeleteDocumentsRequest();
-        request.DocumentIds.AddRange(documentIds);
+        request.DocumentIds.AddRange(Ids.ToWire(documentIds));
 
         await RpcInvoker.InvokeAsync(
             _client.DeleteDocumentsAsync(request, cancellationToken: cancellationToken),
@@ -188,7 +184,7 @@ internal sealed class DocumentsClient : IDocumentsClient
     /// <inheritdoc />
     public async Task<IReadOnlyList<DocumentSearchResult>> SearchAsync(
         string query,
-        IEnumerable<string>? documentIds = null,
+        IEnumerable<Guid>? documentIds = null,
         int? topK = null,
         CancellationToken cancellationToken = default)
     {
@@ -201,7 +197,7 @@ internal sealed class DocumentsClient : IDocumentsClient
         var request = new Proto.SearchDocumentsRequest { QueryText = query, TopK = topK ?? 0 };
         if (documentIds is not null)
         {
-            request.DocumentIds.AddRange(documentIds);
+            request.DocumentIds.AddRange(Ids.ToWire(documentIds));
         }
 
         Proto.SearchDocumentsResponse response = await RpcInvoker.InvokeAsync(
@@ -211,29 +207,29 @@ internal sealed class DocumentsClient : IDocumentsClient
     }
 
     /// <inheritdoc />
-    public async Task<DocumentContent> GetContentAsync(string documentId, CancellationToken cancellationToken = default)
+    public async Task<DocumentContent> GetContentAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(documentId);
 
         Proto.GetDocumentContentResponse response = await RpcInvoker.InvokeAsync(
-            _client.GetDocumentContentAsync(new Proto.GetDocumentContentRequest { DocumentId = documentId }, cancellationToken: cancellationToken),
+            _client.GetDocumentContentAsync(new Proto.GetDocumentContentRequest { DocumentId = documentId.ToString() }, cancellationToken: cancellationToken),
             cancellationToken).ConfigureAwait(false);
         return new DocumentContent { FileName = response.FileName, Content = response.Content.Memory };
     }
 
     /// <inheritdoc />
     public async Task<PagedResult<DocumentChunk>> GetChunksAsync(
-        string documentId,
+        Guid documentId,
         int? pageNumber = null,
         int? pageSize = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(documentId);
         Paging.ValidatePaging(pageNumber, pageSize);
 
         var request = new Proto.GetDocumentChunksRequest
         {
-            DocumentId = documentId,
+            DocumentId = documentId.ToString(),
             PageNumber = pageNumber ?? 0,
             PageSize = pageSize ?? 0,
         };
@@ -252,23 +248,23 @@ internal sealed class DocumentsClient : IDocumentsClient
     }
 
     /// <inheritdoc />
-    public async Task<Document> RetryProcessingAsync(string documentId, CancellationToken cancellationToken = default)
+    public async Task<Document> RetryProcessingAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(documentId);
 
         Proto.RetryDocumentProcessingResponse response = await RpcInvoker.InvokeAsync(
-            _client.RetryDocumentProcessingAsync(new Proto.RetryDocumentProcessingRequest { DocumentId = documentId }, cancellationToken: cancellationToken),
+            _client.RetryDocumentProcessingAsync(new Proto.RetryDocumentProcessingRequest { DocumentId = documentId.ToString() }, cancellationToken: cancellationToken),
             cancellationToken).ConfigureAwait(false);
         return response.Document.ToModel();
     }
 
     /// <inheritdoc />
     public async Task<Document> WaitUntilProcessedAsync(
-        string documentId,
+        Guid documentId,
         TimeSpan? pollInterval = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        Ids.ThrowIfEmpty(documentId);
         TimeSpan interval = pollInterval ?? DefaultPollInterval;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero, nameof(pollInterval));
 

@@ -15,8 +15,8 @@ public sealed class MentisClientOptions
     /// </summary>
     public Uri Endpoint { get; set; } = new("http://localhost:8080");
 
-    /// <summary>The tenant id (a GUID) issued by the Manager administrator.</summary>
-    public string? TenantId { get; set; }
+    /// <summary>The tenant id issued by the Manager administrator.</summary>
+    public Guid? TenantId { get; set; }
 
     /// <summary>The tenant secret issued by the Manager administrator.</summary>
     public string? Secret { get; set; }
@@ -62,11 +62,11 @@ public sealed class MentisClientOptions
             return ApiKey;
         }
 
-        if (string.IsNullOrWhiteSpace(TenantId) || string.IsNullOrWhiteSpace(Secret))
+        if (TenantId is not { } tenantId || tenantId == Guid.Empty || string.IsNullOrWhiteSpace(Secret))
         {
             throw new ArgumentException("Either ApiKey or both TenantId and Secret must be set.", "options");
         }
 
-        return $"{TenantId}.{Secret}";
+        return $"{tenantId}.{Secret}";
     }
 }

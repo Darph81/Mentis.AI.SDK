@@ -13,12 +13,15 @@ namespace Mentis.AI.Sdk.IntegrationTests;
 /// </remarks>
 public abstract class IntegrationTest
 {
-    private readonly List<string> _documentIds = [];
-    private readonly List<(IConversationsClient Client, string Id)> _conversations = [];
+    private readonly List<Guid> _documentIds = [];
+    private readonly List<(IConversationsClient Client, Guid Id)> _conversations = [];
 
     protected Uri Endpoint { get; private set; } = null!;
 
     protected string ApiKey { get; private set; } = null!;
+
+    /// <summary>The tenant the API key belongs to (the part before the first dot).</summary>
+    protected Guid TenantId => Guid.Parse(ApiKey[..ApiKey.IndexOf('.', StringComparison.Ordinal)]);
 
     protected MentisClient Client { get; private set; } = null!;
 
@@ -57,12 +60,12 @@ public abstract class IntegrationTest
     [TearDown]
     public async Task TearDownAsync()
     {
-        foreach ((IConversationsClient client, string id) in _conversations)
+        foreach ((IConversationsClient client, Guid id) in _conversations)
         {
             await IgnoreNotFoundAsync(() => client.DeleteAsync(id));
         }
 
-        foreach (string id in _documentIds)
+        foreach (Guid id in _documentIds)
         {
             await IgnoreNotFoundAsync(() => Client.Documents.DeleteAsync(id));
         }
@@ -87,14 +90,14 @@ public abstract class IntegrationTest
 
     protected async Task<Conversation> StartConversationAsync(
         IConversationsClient client,
-        IEnumerable<string>? documentIds = null)
+        IEnumerable<Guid>? documentIds = null)
     {
         Conversation conversation = await client.StartAsync(UniqueTitle(), documentIds, Timeout);
         _conversations.Add((client, conversation.Id));
         return conversation;
     }
 
-    protected void TrackDocument(string documentId) => _documentIds.Add(documentId);
+    protected void TrackDocument(Guid documentId) => _documentIds.Add(documentId);
 
     protected static string UniqueTitle() => $"sdk-it-{Guid.NewGuid():N}";
 

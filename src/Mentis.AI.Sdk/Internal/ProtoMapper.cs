@@ -9,7 +9,7 @@ internal static class ProtoMapper
 {
     public static Document ToModel(this Proto.Document document) => new()
     {
-        Id = document.Id,
+        Id = ParseId(document.Id),
         Title = document.Title,
         FileName = document.FileName,
         Type = ToEnum<DocumentType>((int)document.Type),
@@ -19,12 +19,12 @@ internal static class ProtoMapper
         CreatedAt = ToDateTimeOffset(document.CreatedAt),
         ProcessedAt = document.ProcessedAt?.ToDateTimeOffset(),
         ChunkCount = document.ChunkCount,
-        TenantId = document.HasTenantId ? document.TenantId : null,
+        TenantId = document.HasTenantId ? ParseOptionalId(document.TenantId) : null,
     };
 
     public static DocumentChunk ToModel(this Proto.DocumentChunk chunk) => new()
     {
-        Id = chunk.Id,
+        Id = ParseId(chunk.Id),
         SequenceNumber = chunk.SequenceNumber,
         Content = chunk.Content,
         HasEmbedding = chunk.HasEmbedding,
@@ -32,37 +32,37 @@ internal static class ProtoMapper
 
     public static DocumentSearchResult ToModel(this Proto.SearchResult result) => new()
     {
-        DocumentId = result.DocumentId,
-        ChunkId = result.ChunkId,
+        DocumentId = ParseId(result.DocumentId),
+        ChunkId = ParseId(result.ChunkId),
         Content = result.Content,
         Score = result.Score,
     };
 
     public static Conversation ToModel(this Proto.Conversation conversation) => new()
     {
-        Id = conversation.Id,
+        Id = ParseId(conversation.Id),
         Title = conversation.Title,
         CreatedAt = ToDateTimeOffset(conversation.CreatedAt),
-        LinkedDocumentIds = [.. conversation.LinkedDocumentIds],
+        LinkedDocumentIds = [.. conversation.LinkedDocumentIds.Select(ParseId)],
         Messages = [.. conversation.Messages.Select(ToModel)],
-        TenantId = conversation.TenantId,
-        OwnerUserId = EmptyToNull(conversation.HasOwnerUserId ? conversation.OwnerUserId : null),
+        TenantId = ParseId(conversation.TenantId),
+        OwnerUserId = conversation.HasOwnerUserId ? ParseOptionalId(conversation.OwnerUserId) : null,
     };
 
     public static ConversationSummary ToModel(this Proto.ConversationSummary summary) => new()
     {
-        Id = summary.Id,
+        Id = ParseId(summary.Id),
         Title = summary.Title,
         CreatedAt = ToDateTimeOffset(summary.CreatedAt),
-        LinkedDocumentIds = [.. summary.LinkedDocumentIds],
+        LinkedDocumentIds = [.. summary.LinkedDocumentIds.Select(ParseId)],
         MessageCount = summary.MessageCount,
-        TenantId = summary.TenantId,
-        OwnerUserId = EmptyToNull(summary.HasOwnerUserId ? summary.OwnerUserId : null),
+        TenantId = ParseId(summary.TenantId),
+        OwnerUserId = summary.HasOwnerUserId ? ParseOptionalId(summary.OwnerUserId) : null,
     };
 
     public static ChatMessage ToModel(this Proto.ChatMessage message) => new()
     {
-        Id = message.Id,
+        Id = ParseId(message.Id),
         Role = ToEnum<MessageRole>((int)message.Role),
         Content = message.Content,
         CreatedAt = ToDateTimeOffset(message.CreatedAt),
@@ -71,15 +71,15 @@ internal static class ProtoMapper
 
     public static Citation ToModel(this Proto.Citation citation) => new()
     {
-        DocumentId = citation.DocumentId,
-        ChunkId = citation.ChunkId,
+        DocumentId = ParseId(citation.DocumentId),
+        ChunkId = ParseId(citation.ChunkId),
         Snippet = citation.Snippet,
         DocumentTitle = EmptyToNull(citation.DocumentTitle),
     };
 
     public static TenantUsage ToModel(this Proto.TenantUsage usage) => new()
     {
-        TenantId = usage.TenantId,
+        TenantId = ParseId(usage.TenantId),
         Year = usage.Year,
         Month = usage.Month,
         TotalTokens = usage.TotalTokens,
@@ -98,4 +98,11 @@ internal static class ProtoMapper
         timestamp?.ToDateTimeOffset() ?? default;
 
     private static string? EmptyToNull(string? value) => string.IsNullOrEmpty(value) ? null : value;
+
+    /// <summary>Every Manager id is a GUID; an empty value maps to <see cref="Guid.Empty"/>.</summary>
+    private static Guid ParseId(string value) =>
+        string.IsNullOrEmpty(value) ? Guid.Empty : Guid.Parse(value);
+
+    private static Guid? ParseOptionalId(string value) =>
+        string.IsNullOrEmpty(value) ? null : Guid.Parse(value);
 }

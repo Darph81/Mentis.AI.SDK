@@ -81,7 +81,7 @@ public class DocumentTests : IntegrationTest
         MentisException ex = await Should.ThrowAsync<MentisException>(() => Client.Documents.GetAsync(document.Id, Timeout));
         ex.StatusCode.ShouldBe(StatusCode.NotFound);
         ex.ErrorCode.ShouldBe("Document.NotFound");
-        ex.Message.ShouldContain(document.Id);
+        ex.Message.ShouldContain(document.Id.ToString());
     }
 
     [Test]
@@ -111,7 +111,7 @@ public class DocumentTests : IntegrationTest
 
         ex.StatusCode.ShouldBe(StatusCode.FailedPrecondition);
         ex.ErrorCode.ShouldBe("Document.DuplicateContent");
-        ex.Message.ShouldContain(document.Id);
+        ex.Message.ShouldContain(document.Id.ToString());
     }
 
     [Test]
