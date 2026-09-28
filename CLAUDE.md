@@ -60,10 +60,11 @@ src/Mentis.AI.Sdk/
   Conversations/                 IConversationsClient + ConversationsClient (internal) + models
   Billing/                       IBillingClient + BillingClient (internal) + models
   Errors/                        MentisException + RpcException translation
-  Internal/                      ProtoMapper, MentisCallInterceptor, RpcInvoker, Paging
+  Internal/                      ProtoMapper, Ids, MentisCallInterceptor, RpcInvoker, Paging
   DependencyInjection/           AddMentisClient() extension
 tests/Mentis.AI.Sdk.Tests/       unit tests (mocked gRPC clients)
-samples/Mentis.AI.Sdk.Sample/    minimal console app (planned)
+tests/Mentis.AI.Sdk.IntegrationTests/  tests against a real Manager (see Testing)
+samples/Mentis.AI.Sdk.Sample/    minimal console app: upload → chat → billing
 ```
 
 Build settings: only `Mentis.AI.Sdk` is packable (`IsPackable` defaults to
@@ -143,7 +144,9 @@ generated C#.
   front.
 - Uploads send the whole file in one unary message (`bytes content`).
   The client's send size is unlimited by default; the server rejects
-  requests above its `GrpcHost:MaxReceiveMessageSizeBytes` (4 MB default).
+  requests above its `GrpcHost:MaxReceiveMessageSizeBytes` - the Manager's
+  shipped `appsettings.json` sets **32 MB** (verified: 5 MB uploads pass);
+  gRPC's own 4 MB default only applies if a deployment removes that setting.
   The client's receive limit is 4 MB by default (matters for
   `GetContentAsync`). `MentisClientOptions` exposes
   `MaxSendMessageSizeBytes` / `MaxReceiveMessageSizeBytes`.
@@ -163,19 +166,41 @@ does not dispose it).
 
 Most conversation RPCs take an optional `user_id` (Phase 69 in the Manager):
 set → conversation owned by that end user; unset → **tenant-global**
-conversation visible to all users of the tenant. The Manager never verifies
-this id; it is supplied by the upstream system.
+conversation visible to all users of the tenant. The id is supplied by the
+upstream system and never checked against anything - but it **must be a
+GUID** (the Manager answers `InvalidArgument` otherwise, verified), which is
+why `ForUser` takes a `Guid`.
+
+Visibility (verified): a user-owned conversation is visible only to that
+user - not to other users and not to the tenant-global client. Tenant-global
+conversations are visible to every user of the tenant.
 
 The SDK models this as a scoped view rather than a `userId` parameter on
 every method:
 
 ```csharp
 var shared = client.Conversations;               // tenant-global
-var alice  = client.Conversations.ForUser("alice"); // scoped to end user
+var alice  = client.Conversations.ForUser(aliceUserId); // scoped to end user (GUID)
 ```
 
 `ForUser` returns a lightweight new `ConversationsClient` over the same
 channel.
+
+### Every id is a `Guid`
+
+All Manager ids are GUIDs (document, chunk, conversation, message, tenant,
+end user - they are `Guid`-backed value objects in the Manager's domain). The
+public API therefore uses `Guid` for every id - parameters, model properties,
+`IReadOnlyList<Guid>` for id lists, `Guid?` for optional ids - and never
+`string`. Owner's decision: a malformed id string would only surface as the
+Manager's meaningless `Internal: "An unexpected error occurred."`.
+
+- Converted to/from the wire in one place: `Internal/Ids.cs` (argument
+  checks, `ToWire`) and `ProtoMapper.ParseId`/`ParseOptionalId`.
+- `Guid.Empty` is rejected at the public boundary with `ArgumentException`
+  (`Ids.ThrowIfEmpty`, also for every element of an id list).
+- The credential stays a string (`ApiKey` = `<tenantId>.<secret>`);
+  `MentisClientOptions.TenantId` is a `Guid?`.
 
 ### Configuration is set once
 
@@ -194,7 +219,9 @@ created `MentisClient` only.
 ### Paging
 
 List RPCs return `PagedResult<T>` (`Items`, `TotalCount`, `PageNumber`,
-`PageSize`). Page numbers are 1-based; `0`/unset lets the server apply its
+`PageSize`). Order is the Manager's (verified): documents, conversations and
+messages **newest first**; chunks in document order (`SequenceNumber`);
+`GetAsync` on a conversation returns its messages chronologically. Page numbers are 1-based; `0`/unset lets the server apply its
 defaults (documents/conversations: 20, chunks/messages: 50) - do not
 duplicate those defaults in the SDK. Convenience `IAsyncEnumerable<T>`
 enumerators (`EnumerateAsync`) walk all pages.
@@ -288,11 +315,67 @@ Update this table in the same change whenever an RPC is added or renamed.
 - `StartConversation` with any unknown `initial_document_ids` fails the
   whole call with `NotFound`; nothing is created.
 - Monthly token limits: `TenantUsage.MonthlyTokenLimit == null` means
-  unlimited.
-- Rate limiting is per caller identity on the server.
+  unlimited. Once a tenant's usage reaches its limit, `SendMessage` fails
+  with `FailedPrecondition` / `Tenant.MonthlyTokenLimitReached` before any
+  LLM cost is spent (verified). One chat call costs roughly 1.5-2k tokens
+  with `llama3.2:1b`; the `Llm` integration test is ignored (not failed)
+  when the test tenant's limit is used up.
+- **Rate limiting** is per caller identity (tenant): a fixed window of
+  `RateLimiting:PermitLimit` requests per `WindowSeconds` (Manager default
+  100 / 60 s, no queueing). A rejected call gets a proper gRPC status
+  (Manager fix 2026-09-28, verified): `MentisException` with
+  `StatusCode.ResourceExhausted`, `ErrorCode == "RateLimit.Exceeded"`,
+  message like `"Too many requests, retry in 60 s."`, plus the trailer
+  `grpc-retry-pushback-ms` (wait time until the next window), sent as a
+  gRPC **Trailers-Only** response (status in the single header block) - only
+  that shape lets gRPC retry policies retry the call at all; a separate
+  trailer block counts as a committed response (verified both ways). The request
+  was **not** processed, so retrying it is safe even for non-idempotent
+  calls - the basis for roadmap item 7. Note: `ResourceExhausted` also
+  comes from gRPC's own message-size limits - check `ErrorCode`, not just
+  the status. `Unavailable` now means "Manager unreachable" only.
+  The full integration suite gets close to 100 calls, so the test client
+  retries rate-limited calls (channel retry policy honoring the pushback).
 - Health endpoints (`/health`, `/health/live`, `/health/ready`,
   `/health/llm`) are plain HTTP/2 GETs, not protos - **not part of the SDK
   for now**.
+
+Verified against a running Manager (2026-09-28):
+
+- **All ids are GUIDs** (document, conversation, user). The Manager parses
+  document/conversation ids with `Guid.Parse`; a malformed id surfaces as
+  `Internal: "An unexpected error occurred."` - no useful message. Hence
+  `Guid` everywhere in the SDK (see "Every id is a `Guid`").
+- **Duplicate content is rejected across all tenants**: uploading bytes
+  identical to any existing document fails with `FailedPrecondition`
+  / `Document.DuplicateContent` (message contains the existing id).
+  Tests must make every upload's content unique.
+- **Global documents appear in tenant listings** (`ListAsync`,
+  `EnumerateAsync`, search) with `TenantId == null`. Deleting them as a
+  tenant fails with `NotFound`. Never "clean up" by deleting everything a
+  listing returns - only delete ids you created.
+- **Fixed Manager bug - transient `NotFound` during processing**: the
+  Manager's `EfDocumentRepository.UpdateAsync` and
+  `EfConversationRepository.UpdateAsync` used to delete and re-insert a row
+  without a transaction, so a concurrent `GetDocumentById` could see an
+  existing document as `NotFound` (observed once in
+  `WaitUntilProcessedAsync`). Fixed in the Manager (2026-09-28) by wrapping
+  both in one transaction. The SDK deliberately has **no workaround** - if a
+  transient `NotFound` shows up again, it is a Manager regression.
+- **LLM errors**: when the provider fails (e.g. the Ollama model is not
+  pulled), `SendMessage` returns `Internal` / `LlmProvider.Failed` with the
+  provider's message.
+- **`SendMessage` searches every document the tenant can see** - its own
+  plus all global ones (Manager Phase 53) - not only the conversation's
+  linked documents. Linking is bookkeeping only (`GetLinkedToDocumentAsync`).
+  Citations are simply the top-5 vector search hits handed to the model as
+  context, not passages the answer provably used - so global documents can
+  show up in any tenant's citations. Tests must assert "contains my
+  document", never "only my document".
+- Error detail format `"<Code>: <Message>"` and the `validation-error-<field>`
+  trailers (e.g. `newtitle`) are confirmed. Errors raised directly in the
+  gRPC layer (e.g. the `user_id` GUID check) carry no code - `ErrorCode` is
+  then `null`.
 
 ## Coding conventions
 
@@ -315,12 +398,29 @@ Update this table in the same change whenever an RPC is added or renamed.
   constructors taking the generated client, so tests build them directly.
 - Tests cover mapping, request building (incl. optional-field presence
   such as `HasUserId`), argument validation and error translation.
-- Integration tests against a real Manager (skipped unless
-  `MENTIS_ENDPOINT` / `MENTIS_API_KEY` are set) are planned, not yet present.
+- **Integration tests** (`tests/Mentis.AI.Sdk.IntegrationTests`) run against
+  a real Manager. They read `MENTIS_ENDPOINT` / `MENTIS_API_KEY` from the
+  environment or from the git-ignored `.env` in the repo root, and are
+  ignored when those are missing. Use a dedicated test tenant.
+  - Every test deletes exactly what it created (`IntegrationTest` tracks the
+    ids) - never delete by listing (global documents are visible, see above).
+    Cleanup survives the rate limiter, keeps going after a failed delete and
+    fails the test with the leftover ids, so nothing is left behind silently.
+  - The test `Client` runs on its own `GrpcChannel` (exercising the
+    external-channel constructor) with a retry policy for
+    `ResourceExhausted`; `grpc-retry-pushback-ms` makes it wait exactly until
+    the next rate-limit window.
+  - Uploads get a unique content marker (duplicate-content rule).
+  - Category `Llm` (`ChatTests`) calls the model, is slow and costs tokens.
+    It needs the configured chat model to be available in the Manager's LLM
+    provider (`ollama pull <model>` for Ollama).
 
 ```bash
 dotnet build
-dotnet test
+dotnet test tests/Mentis.AI.Sdk.Tests                                   # unit tests
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory!=Llm"
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory=Llm"
+set -a && . ./.env && set +a && dotnet run --project samples/Mentis.AI.Sdk.Sample
 ```
 
 ## Roadmap - open work
@@ -331,17 +431,15 @@ into the sections above. Keep the order unless the owner says otherwise.
 
 ### Required before the first release
 
-- [ ] **1. Sample app + integration tests against a real Manager.**
-  Everything is only verified against mocks so far. Unverified: h2c
-  connection to port 8080, Bearer header accepted by the server, the assumed
-  error format (`"<Code>: <Message>"`, `validation-error-*` trailers),
-  behavior of large uploads.
-  - `samples/Mentis.AI.Sdk.Sample/`: minimal console app running the full
-    flow (upload → `WaitUntilProcessedAsync` → start conversation → send
-    message → billing). Credentials from environment variables.
-  - Integration tests that run only when `MENTIS_ENDPOINT` and
-    `MENTIS_API_KEY` are set (skipped otherwise, so CI stays green).
-  - Fix whatever the real server contradicts, and correct this file.
+- [x] **1. Sample app + integration tests against a real Manager.**
+  - [x] Sample app and integration tests exist; h2c, auth, error format,
+    documents, conversations, user scoping and billing verified (see
+    "Verified against a running Manager").
+  - [x] Chat (`SendMessage`, category `Llm`) verified with Ollama
+    `llama3.2:1b`.
+  - [x] Ids are `Guid` throughout the public API (owner's decision).
+  - [x] Transient `NotFound` during processing: fixed in the Manager
+    (transactional `UpdateAsync`), **no SDK workaround** (owner's decision).
 - [ ] **2. Proto drift check.** Script (and later CI step) that compares
   `src/Mentis.AI.Sdk/Protos/*.proto` with the Manager's copies
   (`../SmartAI.Manager/src/Mentis.AI.Contracts/Protos/`), ignoring only the
@@ -362,10 +460,14 @@ into the sections above. Keep the order unless the owner says otherwise.
   (LLM generation); reverse proxies drop idle connections. Configure
   `SocketsHttpHandler.KeepAlivePingDelay/Timeout` on the owned channel.
   Invisible to users.
-- [ ] **7. Retry on transient errors.** gRPC retry policy for `Unavailable`.
-  **Never** for non-idempotent calls (`SendMessage`, `Upload*`, `Start*`,
-  `Link*`) - a retry would duplicate messages and token costs. At most for
-  read-only calls, and only as an opt-in option.
+- [ ] **7. Retry on transient errors.** Rate-limit rejections
+  (`ResourceExhausted` / `RateLimit.Exceeded`) are safe to retry for **every**
+  call (nothing was processed) and carry `grpc-retry-pushback-ms` - an opt-in
+  retry for exactly these is low-risk (the integration tests already do it via
+  a channel retry policy). `Unavailable` is different: the call may or may not
+  have been processed, so **never** retry it for non-idempotent calls
+  (`SendMessage`, `Upload*`, `Start*`, `Link*`) - that would duplicate
+  messages and token costs.
 - [ ] **8. Optional logging.** `ILoggerFactory` on `MentisClientOptions`,
   passed to `GrpcChannelOptions.LoggerFactory`. No new mandatory dependency
   beyond `Microsoft.Extensions.Logging.Abstractions`.

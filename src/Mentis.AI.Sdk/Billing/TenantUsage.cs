@@ -4,7 +4,7 @@ namespace Mentis.AI.Sdk;
 public sealed record TenantUsage
 {
     /// <summary>The tenant the usage belongs to.</summary>
-    public required string TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>Calendar year.</summary>
     public required int Year { get; init; }

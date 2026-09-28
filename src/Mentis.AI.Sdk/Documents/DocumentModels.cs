@@ -45,7 +45,7 @@ public enum DocumentStatus
 public sealed record Document
 {
     /// <summary>Document id.</summary>
-    public required string Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>Display title.</summary>
     public required string Title { get; init; }
@@ -75,7 +75,7 @@ public sealed record Document
     public required int ChunkCount { get; init; }
 
     /// <summary>Owning tenant; <see langword="null"/> for a global document.</summary>
-    public string? TenantId { get; init; }
+    public Guid? TenantId { get; init; }
 
     /// <summary>
     /// Whether this is a global document: readable by every tenant, but only modifiable by an administrator.
@@ -87,7 +87,7 @@ public sealed record Document
 public sealed record DocumentChunk
 {
     /// <summary>Chunk id.</summary>
-    public required string Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>Position of the chunk within the document.</summary>
     public required int SequenceNumber { get; init; }
@@ -103,10 +103,10 @@ public sealed record DocumentChunk
 public sealed record DocumentSearchResult
 {
     /// <summary>Id of the document the chunk belongs to.</summary>
-    public required string DocumentId { get; init; }
+    public required Guid DocumentId { get; init; }
 
     /// <summary>Id of the matching chunk.</summary>
-    public required string ChunkId { get; init; }
+    public required Guid ChunkId { get; init; }
 
     /// <summary>Text content of the matching chunk.</summary>
     public required string Content { get; init; }

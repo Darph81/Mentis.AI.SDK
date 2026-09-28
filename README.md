@@ -7,7 +7,8 @@ retrieval-augmented chat.
 The SDK wraps the Manager's gRPC API in a small, idiomatic C# surface:
 plain records instead of generated protobuf types, `DateTimeOffset`
 instead of `Timestamp`, nullable values instead of proto `optional`, and a
-single exception type for every server error.
+single exception type for every server error. Every id (documents,
+conversations, messages, tenants, end users) is a `Guid`.
 
 > **Status:** early development (0.x) - the API may still change.
 
@@ -41,7 +42,7 @@ using Mentis.AI.Sdk;
 await using var client = new MentisClient(new MentisClientOptions
 {
     Endpoint = new Uri("http://localhost:8080"),
-    TenantId = "3f2c9a1e-...",
+    TenantId = Guid.Parse("3f2c9a1e-..."),
     Secret   = "your-tenant-secret",
 });
 
@@ -53,7 +54,7 @@ if (document.Status == DocumentStatus.Failed)
     throw new InvalidOperationException(document.FailureReason);
 }
 
-// 2. Start a conversation grounded in that document
+// 2. Start a conversation and link the document
 var conversation = await client.Conversations.StartAsync(
     "Handbook questions",
     documentIds: [document.Id]);
@@ -78,7 +79,7 @@ credentials. They are sent with every call - no request takes a tenant id.
 ```csharp
 builder.Services.AddMentisClient(
     endpoint: new Uri(builder.Configuration["Mentis:Endpoint"]!),
-    tenantId: builder.Configuration["Mentis:TenantId"]!,
+    tenantId: Guid.Parse(builder.Configuration["Mentis:TenantId"]!),
     secret:   builder.Configuration["Mentis:Secret"]!);
 
 // Optional further settings
@@ -175,7 +176,7 @@ tenant) or owned by a specific **end user** of your application:
 
 ```csharp
 var shared = client.Conversations;                  // tenant-global
-var alice  = client.Conversations.ForUser("alice"); // only Alice's conversations
+var alice  = client.Conversations.ForUser(aliceUserId); // only Alice's conversations (aliceUserId is a Guid)
 
 var chat = await alice.StartAsync("Onboarding");
 await alice.LinkDocumentsAsync(chat.Id, [doc.Id, doc2.Id]);
@@ -209,7 +210,7 @@ using Grpc.Core; // StatusCode
 
 try
 {
-    await client.Documents.GetAsync("unknown-id");
+    await client.Documents.GetAsync(documentId);
 }
 catch (MentisException ex) when (ex.StatusCode == StatusCode.NotFound)
 {
@@ -231,7 +232,9 @@ catch (MentisException ex) when (ex.ValidationErrors.Count > 0)
 | `FailedPrecondition` | Conflict with the current state                            |
 | `Unauthenticated`    | Missing or invalid tenant credentials                      |
 | `PermissionDenied`   | Not allowed, e.g. modifying a global document              |
-| `Internal`           | Server-side failure                                        |
+| `Internal`           | Server-side failure (e.g. the LLM provider failed)         |
+| `ResourceExhausted`  | Rate limit hit (`ErrorCode` = `RateLimit.Exceeded`) - safe to retry after the wait in the message; also raised for oversized messages |
+| `Unavailable`        | Manager unreachable                                        |
 
 Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 
@@ -246,8 +249,9 @@ Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 | `MaxSendMessageSizeBytes`    | Optional client-side cap on request size (default: unlimited)        |
 | `MaxReceiveMessageSizeBytes` | Response size limit (default 4 MB) - raise to download large documents |
 
-Uploads are sent as a single message. The Manager accepts 4 MB per request by
-default; raise its `GrpcHost:MaxReceiveMessageSizeBytes` for larger files.
+Uploads are sent as a single message. The Manager's request limit is its
+`GrpcHost:MaxReceiveMessageSizeBytes` setting (32 MB in its default
+configuration).
 
 The Manager listens on plain HTTP/2 (h2c). Use `http://` for direct
 connections and `https://` when a TLS reverse proxy is in front of it.
@@ -258,8 +262,26 @@ connections and `https://` when a TLS reverse proxy is in front of it.
 git clone <repo-url>
 cd Mentis.AI.SDK
 dotnet build
-dotnet test
+dotnet test tests/Mentis.AI.Sdk.Tests
 ```
+
+### Integration tests and sample
+
+Both run against a real Manager. Put the connection of a **dedicated test
+tenant** into a `.env` file in the repository root (git-ignored):
+
+```bash
+MENTIS_ENDPOINT=http://localhost:8080
+MENTIS_API_KEY=<tenantId>.<secret>
+```
+
+```bash
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory!=Llm"
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory=Llm"   # calls the LLM, costs tokens
+set -a && . ./.env && set +a && dotnet run --project samples/Mentis.AI.Sdk.Sample
+```
+
+The tests delete everything they create. Without the variables they are skipped.
 
 ## License
 

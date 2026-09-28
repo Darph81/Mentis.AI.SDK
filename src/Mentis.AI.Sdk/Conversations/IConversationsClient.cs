@@ -7,39 +7,47 @@ namespace Mentis.AI.Sdk;
 /// The instance from <see cref="IMentisClient.Conversations"/> works with tenant-global conversations,
 /// visible to every user of the tenant. Use <see cref="ForUser"/> to work with the conversations of one
 /// end user of your application instead.
+/// <para>
+/// Answers always draw on <b>every document the tenant can see</b> - its own and all global documents.
+/// Linking documents to a conversation does not narrow that search; links are bookkeeping only
+/// (see <see cref="GetLinkedToDocumentAsync"/>).
+/// </para>
 /// </remarks>
 public interface IConversationsClient
 {
     /// <summary>
     /// The end user this client is scoped to, or <see langword="null"/> for tenant-global conversations.
     /// </summary>
-    string? UserId { get; }
+    Guid? UserId { get; }
 
     /// <summary>
     /// Returns a client scoped to one end user of your application. Conversations started through it are
-    /// owned by that user. The id is supplied by your application and not verified by the Manager.
+    /// owned by that user. The id is supplied by your application; the Manager only checks its format.
     /// </summary>
     /// <param name="userId">Your application's id for the end user.</param>
-    IConversationsClient ForUser(string userId);
+    IConversationsClient ForUser(Guid userId);
 
     /// <summary>Starts a new conversation.</summary>
     /// <param name="title">Display title.</param>
-    /// <param name="documentIds">Documents to link right away. If any does not exist, nothing is created.</param>
+    /// <param name="documentIds">
+    /// Documents to link right away (bookkeeping only - answers search all visible documents).
+    /// If any does not exist, nothing is created.
+    /// </param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     Task<Conversation> StartAsync(
         string title,
-        IEnumerable<string>? documentIds = null,
+        IEnumerable<Guid>? documentIds = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Gets a conversation including all its messages.</summary>
-    Task<Conversation> GetAsync(string conversationId, CancellationToken cancellationToken = default);
+    Task<Conversation> GetAsync(Guid conversationId, CancellationToken cancellationToken = default);
 
     /// <summary>Gets several conversations (without messages) by id in one call.</summary>
     Task<IReadOnlyList<ConversationSummary>> GetManyAsync(
-        IEnumerable<string> conversationIds,
+        IEnumerable<Guid> conversationIds,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Lists one page of conversations (without messages).</summary>
+    /// <summary>Lists one page of conversations (without messages), newest first.</summary>
     /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
     /// <param name="pageSize">Items per page; the server defaults to 20.</param>
     /// <param name="titleContains">Only return conversations whose title contains this text (case-insensitive).</param>
@@ -61,26 +69,29 @@ public interface IConversationsClient
 
     /// <summary>Gets all conversations a document is linked to.</summary>
     Task<IReadOnlyList<ConversationSummary>> GetLinkedToDocumentAsync(
-        string documentId,
+        Guid documentId,
         CancellationToken cancellationToken = default);
 
     /// <summary>Changes the title of a conversation.</summary>
-    Task<Conversation> RenameAsync(string conversationId, string newTitle, CancellationToken cancellationToken = default);
+    Task<Conversation> RenameAsync(Guid conversationId, string newTitle, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes a conversation and its messages.</summary>
-    Task DeleteAsync(string conversationId, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid conversationId, CancellationToken cancellationToken = default);
 
-    /// <summary>Links a document to a conversation so answers can draw on it.</summary>
-    Task LinkDocumentAsync(string conversationId, string documentId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Links a document to a conversation. This is bookkeeping only; it does not restrict or extend which
+    /// documents answers draw on.
+    /// </summary>
+    Task LinkDocumentAsync(Guid conversationId, Guid documentId, CancellationToken cancellationToken = default);
 
     /// <summary>Links several documents to a conversation in one call.</summary>
     Task LinkDocumentsAsync(
-        string conversationId,
-        IEnumerable<string> documentIds,
+        Guid conversationId,
+        IEnumerable<Guid> documentIds,
         CancellationToken cancellationToken = default);
 
     /// <summary>Removes the link between a document and a conversation.</summary>
-    Task UnlinkDocumentAsync(string conversationId, string documentId, CancellationToken cancellationToken = default);
+    Task UnlinkDocumentAsync(Guid conversationId, Guid documentId, CancellationToken cancellationToken = default);
 
     /// <summary>Sends a user message and returns the assistant's answer.</summary>
     /// <param name="conversationId">The conversation.</param>
@@ -93,27 +104,34 @@ public interface IConversationsClient
     /// tenant has no OData source. Never stored or logged.
     /// </param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>The assistant's answer including citations.</returns>
+    /// <returns>
+    /// The assistant's answer. <see cref="ChatMessage.Citations"/> are the top search hits across all documents
+    /// the tenant can see (own and global) that were given to the model as context - not necessarily passages
+    /// the answer actually used.
+    /// </returns>
     Task<ChatMessage> SendMessageAsync(
-        string conversationId,
+        Guid conversationId,
         string content,
         string? model = null,
         string? odataSecret = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Lists one page of the messages of a conversation.</summary>
+    /// <summary>
+    /// Lists one page of the messages of a conversation, <b>newest first</b>. Use <see cref="GetAsync"/> for
+    /// all messages in chronological order.
+    /// </summary>
     /// <param name="conversationId">The conversation.</param>
     /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
     /// <param name="pageSize">Items per page; the server defaults to 50.</param>
     /// <param name="role">Only return messages with this role.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     Task<PagedResult<ChatMessage>> ListMessagesAsync(
-        string conversationId,
+        Guid conversationId,
         int? pageNumber = null,
         int? pageSize = null,
         MessageRole? role = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Exports a conversation as a Markdown document.</summary>
-    Task<string> ExportMarkdownAsync(string conversationId, CancellationToken cancellationToken = default);
+    Task<string> ExportMarkdownAsync(Guid conversationId, CancellationToken cancellationToken = default);
 }

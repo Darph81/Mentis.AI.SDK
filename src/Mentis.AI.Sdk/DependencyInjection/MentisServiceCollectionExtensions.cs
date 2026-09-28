@@ -1,4 +1,5 @@
 using Mentis.AI.Sdk;
+using Mentis.AI.Sdk.Internal;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -23,12 +24,12 @@ public static class MentisServiceCollectionExtensions
     public static IServiceCollection AddMentisClient(
         this IServiceCollection services,
         Uri endpoint,
-        string tenantId,
+        Guid tenantId,
         string secret,
         Action<MentisClientOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+        Ids.ThrowIfEmpty(tenantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(secret);
 
         return services.AddMentisClient(options =>

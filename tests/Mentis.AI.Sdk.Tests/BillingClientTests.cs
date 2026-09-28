@@ -25,7 +25,7 @@ public class BillingClientTests
         _grpc.GetTenantUsageAsync(Arg.Do<Proto.GetTenantUsageRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.GetTenantUsageResponse
             {
-                Usage = new Proto.TenantUsage { TenantId = "t1", Year = 2026, Month = 9, TotalTokens = 1234 },
+                Usage = new Proto.TenantUsage { TenantId = TestIds.Tenant1.ToString(), Year = 2026, Month = 9, TotalTokens = 1234 },
             }));
 
         TenantUsage usage = await _client.GetUsageAsync();
@@ -44,7 +44,7 @@ public class BillingClientTests
         _grpc.GetTenantUsageAsync(Arg.Do<Proto.GetTenantUsageRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.GetTenantUsageResponse
             {
-                Usage = new Proto.TenantUsage { TenantId = "t1", Year = 2026, Month = 3, MonthlyTokenLimit = 5000 },
+                Usage = new Proto.TenantUsage { TenantId = TestIds.Tenant1.ToString(), Year = 2026, Month = 3, MonthlyTokenLimit = 5000 },
             }));
 
         TenantUsage usage = await _client.GetUsageAsync(2026, 3);

@@ -16,14 +16,17 @@ public enum MessageRole
     System = 3,
 }
 
-/// <summary>A document passage an assistant answer is based on.</summary>
+/// <summary>
+/// A document passage that was given to the model as context for an assistant answer
+/// (one of the top search hits - not necessarily used by the answer).
+/// </summary>
 public sealed record Citation
 {
     /// <summary>Id of the cited document.</summary>
-    public required string DocumentId { get; init; }
+    public required Guid DocumentId { get; init; }
 
     /// <summary>Id of the cited chunk.</summary>
-    public required string ChunkId { get; init; }
+    public required Guid ChunkId { get; init; }
 
     /// <summary>The cited text.</summary>
     public required string Snippet { get; init; }
@@ -39,7 +42,7 @@ public sealed record Citation
 public sealed record ChatMessage
 {
     /// <summary>Message id.</summary>
-    public required string Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>Author of the message.</summary>
     public required MessageRole Role { get; init; }
@@ -58,7 +61,7 @@ public sealed record ChatMessage
 public sealed record Conversation
 {
     /// <summary>Conversation id.</summary>
-    public required string Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>Display title.</summary>
     public required string Title { get; init; }
@@ -67,23 +70,23 @@ public sealed record Conversation
     public required DateTimeOffset CreatedAt { get; init; }
 
     /// <summary>Documents the conversation draws its answers from.</summary>
-    public required IReadOnlyList<string> LinkedDocumentIds { get; init; }
+    public required IReadOnlyList<Guid> LinkedDocumentIds { get; init; }
 
     /// <summary>Messages in chronological order.</summary>
     public required IReadOnlyList<ChatMessage> Messages { get; init; }
 
     /// <summary>Owning tenant.</summary>
-    public required string TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>End user owning the conversation; <see langword="null"/> for a tenant-global conversation.</summary>
-    public string? OwnerUserId { get; init; }
+    public Guid? OwnerUserId { get; init; }
 }
 
 /// <summary>A conversation without its messages, as returned by list operations.</summary>
 public sealed record ConversationSummary
 {
     /// <summary>Conversation id.</summary>
-    public required string Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>Display title.</summary>
     public required string Title { get; init; }
@@ -92,14 +95,14 @@ public sealed record ConversationSummary
     public required DateTimeOffset CreatedAt { get; init; }
 
     /// <summary>Documents the conversation draws its answers from.</summary>
-    public required IReadOnlyList<string> LinkedDocumentIds { get; init; }
+    public required IReadOnlyList<Guid> LinkedDocumentIds { get; init; }
 
     /// <summary>Number of messages in the conversation.</summary>
     public required int MessageCount { get; init; }
 
     /// <summary>Owning tenant.</summary>
-    public required string TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>End user owning the conversation; <see langword="null"/> for a tenant-global conversation.</summary>
-    public string? OwnerUserId { get; init; }
+    public Guid? OwnerUserId { get; init; }
 }

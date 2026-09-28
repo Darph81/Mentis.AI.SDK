@@ -13,15 +13,15 @@ public class MentisClientTests
     [Test]
     public void Options_WithTenantIdAndSecret_BuildsApiKey()
     {
-        var options = new MentisClientOptions { TenantId = "tenant", Secret = "secret" };
+        var options = new MentisClientOptions { TenantId = TestIds.Tenant1, Secret = "secret" };
 
-        options.GetValidatedApiKey().ShouldBe("tenant.secret");
+        options.GetValidatedApiKey().ShouldBe($"{TestIds.Tenant1}.secret");
     }
 
     [Test]
     public void Options_ApiKey_TakesPrecedence()
     {
-        var options = new MentisClientOptions { ApiKey = "a.b", TenantId = "tenant", Secret = "secret" };
+        var options = new MentisClientOptions { ApiKey = "a.b", TenantId = TestIds.Tenant1, Secret = "secret" };
 
         options.GetValidatedApiKey().ShouldBe("a.b");
     }
@@ -29,7 +29,7 @@ public class MentisClientTests
     [Test]
     public void Constructor_WithoutCredentials_Throws()
     {
-        Should.Throw<ArgumentException>(() => new MentisClient(new MentisClientOptions { TenantId = "tenant" }));
+        Should.Throw<ArgumentException>(() => new MentisClient(new MentisClientOptions { TenantId = TestIds.Tenant1 }));
     }
 
     [Test]
@@ -71,7 +71,7 @@ public class MentisClientTests
         var services = new ServiceCollection();
         services.AddMentisClient(
             new Uri("http://mentis:8080"),
-            "tenant",
+            TestIds.Tenant1,
             "secret",
             o => o.Timeout = TimeSpan.FromSeconds(10));
 
@@ -79,9 +79,17 @@ public class MentisClientTests
 
         MentisClientOptions options = provider.GetRequiredService<IOptions<MentisClientOptions>>().Value;
         options.Endpoint.ShouldBe(new Uri("http://mentis:8080"));
-        options.GetValidatedApiKey().ShouldBe("tenant.secret");
+        options.GetValidatedApiKey().ShouldBe($"{TestIds.Tenant1}.secret");
         options.Timeout.ShouldBe(TimeSpan.FromSeconds(10));
         provider.GetRequiredService<MentisClient>().ShouldBeSameAs(provider.GetRequiredService<MentisClient>());
+    }
+
+    [Test]
+    public void AddMentisClient_WithEmptyTenantId_ThrowsAtRegistration()
+    {
+        var services = new ServiceCollection();
+
+        Should.Throw<ArgumentException>(() => services.AddMentisClient(new Uri("http://mentis:8080"), Guid.Empty, "secret"));
     }
 
     [Test]
@@ -89,7 +97,7 @@ public class MentisClientTests
     {
         var services = new ServiceCollection();
 
-        Should.Throw<ArgumentException>(() => services.AddMentisClient(new Uri("http://mentis:8080"), "tenant", " "));
+        Should.Throw<ArgumentException>(() => services.AddMentisClient(new Uri("http://mentis:8080"), TestIds.Tenant1, " "));
     }
 
     [Test]

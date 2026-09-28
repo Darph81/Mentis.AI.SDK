@@ -38,6 +38,21 @@ public class MentisExceptionTests
     }
 
     [Test]
+    public void FromRpcException_RateLimit_ExposesResourceExhaustedAndCode()
+    {
+        var trailers = new Metadata { { "grpc-retry-pushback-ms", "60000" } };
+        var rpc = new RpcException(
+            new Status(StatusCode.ResourceExhausted, "RateLimit.Exceeded: Too many requests, retry in 60 s."), trailers);
+
+        MentisException ex = MentisException.FromRpcException(rpc);
+
+        ex.StatusCode.ShouldBe(StatusCode.ResourceExhausted);
+        ex.ErrorCode.ShouldBe("RateLimit.Exceeded");
+        ex.Message.ShouldBe("Too many requests, retry in 60 s.");
+        ex.ValidationErrors.ShouldBeEmpty();
+    }
+
+    [Test]
     public void FromRpcException_ReadsValidationTrailers()
     {
         var trailers = new Metadata
