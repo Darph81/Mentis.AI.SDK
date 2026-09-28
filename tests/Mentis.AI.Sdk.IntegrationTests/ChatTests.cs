@@ -18,18 +18,24 @@ public class ChatTests : IntegrationTest
 
         answer.Role.ShouldBe(MessageRole.Assistant);
         answer.Content.ShouldNotBeNullOrWhiteSpace();
-        answer.Citations.ShouldNotBeEmpty();
-        answer.Citations.ShouldAllBe(c => c.DocumentId == document.Id && c.DocumentTitle == "Contoso Travel Policy");
+        // The Manager searches every document the tenant can see (own + global), not only the
+        // linked ones, so other documents may be cited as well. Ours must be among them.
+        answer.Citations.ShouldContain(c => c.DocumentId == document.Id && c.DocumentTitle == "Contoso Travel Policy");
+        answer.Citations.ShouldAllBe(c => c.DocumentTitle != null);
 
+        // ListMessages is newest first; GetAsync returns the messages in chronological order.
         PagedResult<ChatMessage> messages = await Client.Conversations.ListMessagesAsync(conversation.Id, cancellationToken: Timeout);
-        messages.Items.Select(m => m.Role).ShouldBe([MessageRole.User, MessageRole.Assistant]);
+        messages.Items.Select(m => m.Role).ShouldBe([MessageRole.Assistant, MessageRole.User]);
+        (await Client.Conversations.GetAsync(conversation.Id, Timeout)).Messages
+            .Select(m => m.Role).ShouldBe([MessageRole.User, MessageRole.Assistant]);
 
         PagedResult<ChatMessage> userOnly = await Client.Conversations.ListMessagesAsync(
             conversation.Id, role: MessageRole.User, cancellationToken: Timeout);
         userOnly.Items.Single().Content.ShouldBe("Up to how much is a hotel night reimbursed?");
 
         // Citations read back later carry no document title (Manager behavior).
-        messages.Items[1].Citations.ShouldAllBe(c => c.DocumentTitle == null);
+        messages.Items[0].Citations.ShouldNotBeEmpty();
+        messages.Items[0].Citations.ShouldAllBe(c => c.DocumentTitle == null);
 
         (await Client.Billing.GetUsageAsync(cancellationToken: Timeout)).TotalTokens.ShouldBeGreaterThan(0);
     }

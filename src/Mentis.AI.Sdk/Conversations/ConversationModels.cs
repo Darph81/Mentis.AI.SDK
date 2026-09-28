@@ -16,7 +16,10 @@ public enum MessageRole
     System = 3,
 }
 
-/// <summary>A document passage an assistant answer is based on.</summary>
+/// <summary>
+/// A document passage that was given to the model as context for an assistant answer
+/// (one of the top search hits - not necessarily used by the answer).
+/// </summary>
 public sealed record Citation
 {
     /// <summary>Id of the cited document.</summary>

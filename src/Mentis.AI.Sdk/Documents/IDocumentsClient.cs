@@ -46,7 +46,7 @@ public interface IDocumentsClient
         IEnumerable<Guid> documentIds,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Lists one page of documents.</summary>
+    /// <summary>Lists one page of documents, newest first.</summary>
     /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
     /// <param name="pageSize">Items per page; the server defaults to 20.</param>
     /// <param name="status">Only return documents in this state.</param>
@@ -93,7 +93,7 @@ public interface IDocumentsClient
     /// <summary>Downloads the original file of a document.</summary>
     Task<DocumentContent> GetContentAsync(Guid documentId, CancellationToken cancellationToken = default);
 
-    /// <summary>Lists one page of the chunks a document was split into.</summary>
+    /// <summary>Lists one page of the chunks a document was split into, in document order.</summary>
     /// <param name="documentId">The document.</param>
     /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
     /// <param name="pageSize">Items per page; the server defaults to 50.</param>

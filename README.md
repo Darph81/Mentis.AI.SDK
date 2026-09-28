@@ -54,7 +54,7 @@ if (document.Status == DocumentStatus.Failed)
     throw new InvalidOperationException(document.FailureReason);
 }
 
-// 2. Start a conversation grounded in that document
+// 2. Start a conversation and link the document
 var conversation = await client.Conversations.StartAsync(
     "Handbook questions",
     documentIds: [document.Id]);

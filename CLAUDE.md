@@ -219,7 +219,9 @@ created `MentisClient` only.
 ### Paging
 
 List RPCs return `PagedResult<T>` (`Items`, `TotalCount`, `PageNumber`,
-`PageSize`). Page numbers are 1-based; `0`/unset lets the server apply its
+`PageSize`). Order is the Manager's (verified): documents, conversations and
+messages **newest first**; chunks in document order (`SequenceNumber`);
+`GetAsync` on a conversation returns its messages chronologically. Page numbers are 1-based; `0`/unset lets the server apply its
 defaults (documents/conversations: 20, chunks/messages: 50) - do not
 duplicate those defaults in the SDK. Convenience `IAsyncEnumerable<T>`
 enumerators (`EnumerateAsync`) walk all pages.
@@ -333,15 +335,24 @@ Verified against a running Manager (2026-09-28):
   `EnumerateAsync`, search) with `TenantId == null`. Deleting them as a
   tenant fails with `NotFound`. Never "clean up" by deleting everything a
   listing returns - only delete ids you created.
-- **Manager bug - transient `NotFound` during processing**:
-  `EfDocumentRepository.UpdateAsync` deletes the row and re-inserts it in two
-  separate statements without a transaction. A `GetDocumentById` hitting that
-  gap returns `Document.NotFound` for an existing document; this was observed
-  once in `WaitUntilProcessedAsync`. Fix belongs in the Manager (wrap in a
-  transaction); SDK-side tolerance is an open decision.
+- **Fixed Manager bug - transient `NotFound` during processing**: the
+  Manager's `EfDocumentRepository.UpdateAsync` and
+  `EfConversationRepository.UpdateAsync` used to delete and re-insert a row
+  without a transaction, so a concurrent `GetDocumentById` could see an
+  existing document as `NotFound` (observed once in
+  `WaitUntilProcessedAsync`). Fixed in the Manager (2026-09-28) by wrapping
+  both in one transaction. The SDK deliberately has **no workaround** - if a
+  transient `NotFound` shows up again, it is a Manager regression.
 - **LLM errors**: when the provider fails (e.g. the Ollama model is not
   pulled), `SendMessage` returns `Internal` / `LlmProvider.Failed` with the
   provider's message.
+- **`SendMessage` searches every document the tenant can see** - its own
+  plus all global ones (Manager Phase 53) - not only the conversation's
+  linked documents. Linking is bookkeeping only (`GetLinkedToDocumentAsync`).
+  Citations are simply the top-5 vector search hits handed to the model as
+  context, not passages the answer provably used - so global documents can
+  show up in any tenant's citations. Tests must assert "contains my
+  document", never "only my document".
 - Error detail format `"<Code>: <Message>"` and the `validation-error-<field>`
   trailers (e.g. `newtitle`) are confirmed. Errors raised directly in the
   gRPC layer (e.g. the `user_id` GUID check) carry no code - `ErrorCode` is
@@ -395,16 +406,15 @@ into the sections above. Keep the order unless the owner says otherwise.
 
 ### Required before the first release
 
-- [ ] **1. Sample app + integration tests against a real Manager.**
+- [x] **1. Sample app + integration tests against a real Manager.**
   - [x] Sample app and integration tests exist; h2c, auth, error format,
     documents, conversations, user scoping and billing verified (see
     "Verified against a running Manager").
-  - [ ] Chat (`SendMessage`, category `Llm`) - blocked until the chat model
-    is available in the local Ollama.
+  - [x] Chat (`SendMessage`, category `Llm`) verified with Ollama
+    `llama3.2:1b`.
   - [x] Ids are `Guid` throughout the public API (owner's decision).
   - [x] Transient `NotFound` during processing: fixed in the Manager
     (transactional `UpdateAsync`), **no SDK workaround** (owner's decision).
-    Re-run the integration tests once the Manager fix is deployed.
 - [ ] **2. Proto drift check.** Script (and later CI step) that compares
   `src/Mentis.AI.Sdk/Protos/*.proto` with the Manager's copies
   (`../SmartAI.Manager/src/Mentis.AI.Contracts/Protos/`), ignoring only the
