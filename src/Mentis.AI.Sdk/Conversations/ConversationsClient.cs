@@ -22,6 +22,11 @@ internal sealed class ConversationsClient : IConversationsClient
     public IConversationsClient ForUser(string userId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        if (!Guid.TryParse(userId, out _))
+        {
+            throw new ArgumentException("The Manager requires the end-user id to be a GUID.", nameof(userId));
+        }
+
         return new ConversationsClient(_client, userId);
     }
 

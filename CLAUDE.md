@@ -63,7 +63,8 @@ src/Mentis.AI.Sdk/
   Internal/                      ProtoMapper, MentisCallInterceptor, RpcInvoker, Paging
   DependencyInjection/           AddMentisClient() extension
 tests/Mentis.AI.Sdk.Tests/       unit tests (mocked gRPC clients)
-samples/Mentis.AI.Sdk.Sample/    minimal console app (planned)
+tests/Mentis.AI.Sdk.IntegrationTests/  tests against a real Manager (see Testing)
+samples/Mentis.AI.Sdk.Sample/    minimal console app: upload → chat → billing
 ```
 
 Build settings: only `Mentis.AI.Sdk` is packable (`IsPackable` defaults to
@@ -143,7 +144,9 @@ generated C#.
   front.
 - Uploads send the whole file in one unary message (`bytes content`).
   The client's send size is unlimited by default; the server rejects
-  requests above its `GrpcHost:MaxReceiveMessageSizeBytes` (4 MB default).
+  requests above its `GrpcHost:MaxReceiveMessageSizeBytes` - the Manager's
+  shipped `appsettings.json` sets **32 MB** (verified: 5 MB uploads pass);
+  gRPC's own 4 MB default only applies if a deployment removes that setting.
   The client's receive limit is 4 MB by default (matters for
   `GetContentAsync`). `MentisClientOptions` exposes
   `MaxSendMessageSizeBytes` / `MaxReceiveMessageSizeBytes`.
@@ -163,15 +166,21 @@ does not dispose it).
 
 Most conversation RPCs take an optional `user_id` (Phase 69 in the Manager):
 set → conversation owned by that end user; unset → **tenant-global**
-conversation visible to all users of the tenant. The Manager never verifies
-this id; it is supplied by the upstream system.
+conversation visible to all users of the tenant. The id is supplied by the
+upstream system and never checked against anything - but it **must be a
+GUID** (the Manager answers `InvalidArgument` otherwise, verified). `ForUser`
+therefore validates the format client-side.
+
+Visibility (verified): a user-owned conversation is visible only to that
+user - not to other users and not to the tenant-global client. Tenant-global
+conversations are visible to every user of the tenant.
 
 The SDK models this as a scoped view rather than a `userId` parameter on
 every method:
 
 ```csharp
 var shared = client.Conversations;               // tenant-global
-var alice  = client.Conversations.ForUser("alice"); // scoped to end user
+var alice  = client.Conversations.ForUser(aliceUserId); // scoped to end user (GUID)
 ```
 
 `ForUser` returns a lightweight new `ConversationsClient` over the same
@@ -294,6 +303,34 @@ Update this table in the same change whenever an RPC is added or renamed.
   `/health/llm`) are plain HTTP/2 GETs, not protos - **not part of the SDK
   for now**.
 
+Verified against a running Manager (2026-09-28):
+
+- **All ids are GUIDs** (document, conversation, user). The Manager parses
+  document/conversation ids with `Guid.Parse`; a malformed id surfaces as
+  `Internal: "An unexpected error occurred."` - no useful message. The SDK
+  currently passes ids through as strings (open decision, see roadmap).
+- **Duplicate content is rejected across all tenants**: uploading bytes
+  identical to any existing document fails with `FailedPrecondition`
+  / `Document.DuplicateContent` (message contains the existing id).
+  Tests must make every upload's content unique.
+- **Global documents appear in tenant listings** (`ListAsync`,
+  `EnumerateAsync`, search) with `TenantId == null`. Deleting them as a
+  tenant fails with `NotFound`. Never "clean up" by deleting everything a
+  listing returns - only delete ids you created.
+- **Manager bug - transient `NotFound` during processing**:
+  `EfDocumentRepository.UpdateAsync` deletes the row and re-inserts it in two
+  separate statements without a transaction. A `GetDocumentById` hitting that
+  gap returns `Document.NotFound` for an existing document; this was observed
+  once in `WaitUntilProcessedAsync`. Fix belongs in the Manager (wrap in a
+  transaction); SDK-side tolerance is an open decision.
+- **LLM errors**: when the provider fails (e.g. the Ollama model is not
+  pulled), `SendMessage` returns `Internal` / `LlmProvider.Failed` with the
+  provider's message.
+- Error detail format `"<Code>: <Message>"` and the `validation-error-<field>`
+  trailers (e.g. `newtitle`) are confirmed. Errors raised directly in the
+  gRPC layer (e.g. the `user_id` GUID check) carry no code - `ErrorCode` is
+  then `null`.
+
 ## Coding conventions
 
 - File-scoped namespaces, `Nullable` enabled, warnings as errors in Release.
@@ -315,12 +352,23 @@ Update this table in the same change whenever an RPC is added or renamed.
   constructors taking the generated client, so tests build them directly.
 - Tests cover mapping, request building (incl. optional-field presence
   such as `HasUserId`), argument validation and error translation.
-- Integration tests against a real Manager (skipped unless
-  `MENTIS_ENDPOINT` / `MENTIS_API_KEY` are set) are planned, not yet present.
+- **Integration tests** (`tests/Mentis.AI.Sdk.IntegrationTests`) run against
+  a real Manager. They read `MENTIS_ENDPOINT` / `MENTIS_API_KEY` from the
+  environment or from the git-ignored `.env` in the repo root, and are
+  ignored when those are missing. Use a dedicated test tenant.
+  - Every test deletes exactly what it created (`IntegrationTest` tracks the
+    ids) - never delete by listing (global documents are visible, see above).
+  - Uploads get a unique content marker (duplicate-content rule).
+  - Category `Llm` (`ChatTests`) calls the model, is slow and costs tokens.
+    It needs the configured chat model to be available in the Manager's LLM
+    provider (`ollama pull <model>` for Ollama).
 
 ```bash
 dotnet build
-dotnet test
+dotnet test tests/Mentis.AI.Sdk.Tests                                   # unit tests
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory!=Llm"
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory=Llm"
+set -a && . ./.env && set +a && dotnet run --project samples/Mentis.AI.Sdk.Sample
 ```
 
 ## Roadmap - open work
@@ -332,16 +380,15 @@ into the sections above. Keep the order unless the owner says otherwise.
 ### Required before the first release
 
 - [ ] **1. Sample app + integration tests against a real Manager.**
-  Everything is only verified against mocks so far. Unverified: h2c
-  connection to port 8080, Bearer header accepted by the server, the assumed
-  error format (`"<Code>: <Message>"`, `validation-error-*` trailers),
-  behavior of large uploads.
-  - `samples/Mentis.AI.Sdk.Sample/`: minimal console app running the full
-    flow (upload → `WaitUntilProcessedAsync` → start conversation → send
-    message → billing). Credentials from environment variables.
-  - Integration tests that run only when `MENTIS_ENDPOINT` and
-    `MENTIS_API_KEY` are set (skipped otherwise, so CI stays green).
-  - Fix whatever the real server contradicts, and correct this file.
+  - [x] Sample app and integration tests exist; h2c, auth, error format,
+    documents, conversations, user scoping and billing verified (see
+    "Verified against a running Manager").
+  - [ ] Chat (`SendMessage`, category `Llm`) - blocked until the chat model
+    is available in the local Ollama.
+  - [ ] Decide: id parameters as `Guid` instead of `string` (malformed ids
+    currently end as a meaningless `Internal` error).
+  - [ ] Decide: tolerate the Manager's transient `NotFound` in
+    `WaitUntilProcessedAsync`, or rely on a Manager fix.
 - [ ] **2. Proto drift check.** Script (and later CI step) that compares
   `src/Mentis.AI.Sdk/Protos/*.proto` with the Manager's copies
   (`../SmartAI.Manager/src/Mentis.AI.Contracts/Protos/`), ignoring only the

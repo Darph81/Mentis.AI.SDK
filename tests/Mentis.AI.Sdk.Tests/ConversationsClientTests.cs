@@ -42,19 +42,20 @@ public class ConversationsClientTests
         Proto.StartConversationRequest? start = null;
         Proto.DeleteConversationRequest? delete = null;
         _grpc.StartConversationAsync(Arg.Do<Proto.StartConversationRequest>(r => start = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
-            .Returns(GrpcTestCalls.Success(new Proto.StartConversationResponse { Conversation = new Proto.Conversation { Id = "c1", OwnerUserId = "alice" } }));
+            .Returns(GrpcTestCalls.Success(new Proto.StartConversationResponse { Conversation = new Proto.Conversation { Id = "c1", OwnerUserId = "5c3e8a4e-2f7b-4a51-9f0e-6f1d2b3c4d5e" } }));
         _grpc.DeleteConversationAsync(Arg.Do<Proto.DeleteConversationRequest>(r => delete = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.DeleteConversationResponse()));
 
-        IConversationsClient alice = _client.ForUser("alice");
+        const string aliceId = "5c3e8a4e-2f7b-4a51-9f0e-6f1d2b3c4d5e";
+        IConversationsClient alice = _client.ForUser(aliceId);
         Conversation conversation = await alice.StartAsync("Chat");
         await alice.DeleteAsync("c1");
 
-        alice.UserId.ShouldBe("alice");
+        alice.UserId.ShouldBe(aliceId);
         _client.UserId.ShouldBeNull();
-        start!.UserId.ShouldBe("alice");
-        delete!.UserId.ShouldBe("alice");
-        conversation.OwnerUserId.ShouldBe("alice");
+        start!.UserId.ShouldBe(aliceId);
+        delete!.UserId.ShouldBe(aliceId);
+        conversation.OwnerUserId.ShouldBe(aliceId);
     }
 
     [Test]
@@ -130,5 +131,11 @@ public class ConversationsClientTests
     public void ForUser_EmptyUserId_Throws()
     {
         Should.Throw<ArgumentException>(() => _client.ForUser(""));
+    }
+
+    [Test]
+    public void ForUser_NonGuidUserId_Throws()
+    {
+        Should.Throw<ArgumentException>(() => _client.ForUser("alice"));
     }
 }

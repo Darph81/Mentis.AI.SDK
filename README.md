@@ -175,7 +175,7 @@ tenant) or owned by a specific **end user** of your application:
 
 ```csharp
 var shared = client.Conversations;                  // tenant-global
-var alice  = client.Conversations.ForUser("alice"); // only Alice's conversations
+var alice  = client.Conversations.ForUser(aliceUserId); // only Alice's conversations (id must be a GUID)
 
 var chat = await alice.StartAsync("Onboarding");
 await alice.LinkDocumentsAsync(chat.Id, [doc.Id, doc2.Id]);
@@ -246,8 +246,9 @@ Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 | `MaxSendMessageSizeBytes`    | Optional client-side cap on request size (default: unlimited)        |
 | `MaxReceiveMessageSizeBytes` | Response size limit (default 4 MB) - raise to download large documents |
 
-Uploads are sent as a single message. The Manager accepts 4 MB per request by
-default; raise its `GrpcHost:MaxReceiveMessageSizeBytes` for larger files.
+Uploads are sent as a single message. The Manager's request limit is its
+`GrpcHost:MaxReceiveMessageSizeBytes` setting (32 MB in its default
+configuration).
 
 The Manager listens on plain HTTP/2 (h2c). Use `http://` for direct
 connections and `https://` when a TLS reverse proxy is in front of it.
@@ -258,8 +259,26 @@ connections and `https://` when a TLS reverse proxy is in front of it.
 git clone <repo-url>
 cd Mentis.AI.SDK
 dotnet build
-dotnet test
+dotnet test tests/Mentis.AI.Sdk.Tests
 ```
+
+### Integration tests and sample
+
+Both run against a real Manager. Put the connection of a **dedicated test
+tenant** into a `.env` file in the repository root (git-ignored):
+
+```bash
+MENTIS_ENDPOINT=http://localhost:8080
+MENTIS_API_KEY=<tenantId>.<secret>
+```
+
+```bash
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory!=Llm"
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory=Llm"   # calls the LLM, costs tokens
+set -a && . ./.env && set +a && dotnet run --project samples/Mentis.AI.Sdk.Sample
+```
+
+The tests delete everything they create. Without the variables they are skipped.
 
 ## License
 

@@ -17,9 +17,10 @@ public interface IConversationsClient
 
     /// <summary>
     /// Returns a client scoped to one end user of your application. Conversations started through it are
-    /// owned by that user. The id is supplied by your application and not verified by the Manager.
+    /// owned by that user. The id is supplied by your application; the Manager only checks its format.
     /// </summary>
-    /// <param name="userId">Your application's id for the end user.</param>
+    /// <param name="userId">Your application's id for the end user. Must be a GUID.</param>
+    /// <exception cref="ArgumentException"><paramref name="userId"/> is not a GUID.</exception>
     IConversationsClient ForUser(string userId);
 
     /// <summary>Starts a new conversation.</summary>
