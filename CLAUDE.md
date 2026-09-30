@@ -317,7 +317,9 @@ Update this table in the same change whenever an RPC is added or renamed.
 - Monthly token limits: `TenantUsage.MonthlyTokenLimit == null` means
   unlimited. Once a tenant's usage reaches its limit, `SendMessage` fails
   with `FailedPrecondition` / `Tenant.MonthlyTokenLimitReached` before any
-  LLM cost is spent (verified). One chat call costs roughly 1.5-2k tokens
+  LLM cost is spent and without storing the user's message (verified). A
+  limit of `0` blocks every message and is reported as `0`, not `null`;
+  everything except `SendMessage` keeps working for such a tenant. One chat call costs roughly 1.5-2k tokens
   with `llama3.2:1b`; the `Llm` integration test is ignored (not failed)
   when the test tenant's limit is used up.
 - **Rate limiting** is per caller identity (tenant): a fixed window of
@@ -411,6 +413,12 @@ Verified against a running Manager (2026-09-28):
     `ResourceExhausted`; `grpc-retry-pushback-ms` makes it wait exactly until
     the next rate-limit window.
   - Uploads get a unique content marker (duplicate-content rule).
+  - `TokenLimitTests` use a **second tenant with a monthly token limit of 0**
+    (`MENTIS_LIMIT_API_KEY`, optional - ignored when missing). They verify
+    the limit error deterministically and cost no tokens. The main test
+    tenant (`MENTIS_API_KEY`) should have no limit, otherwise `ChatTests`
+    are ignored once it is used up. `CreateClient(apiKey)` on the test base
+    builds further tenant clients on the shared retrying channel.
   - Category `Llm` (`ChatTests`) calls the model, is slow and costs tokens.
     It needs the configured chat model to be available in the Manager's LLM
     provider (`ollama pull <model>` for Ollama).
