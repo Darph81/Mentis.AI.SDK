@@ -273,6 +273,8 @@ tenant** into a `.env` file in the repository root (git-ignored):
 ```bash
 MENTIS_ENDPOINT=http://localhost:8080
 MENTIS_API_KEY=<tenantId>.<secret>
+# optional: a second tenant with a monthly token limit of 0, for the token-limit tests
+MENTIS_LIMIT_API_KEY=<tenantId>.<secret>
 ```
 
 ```bash

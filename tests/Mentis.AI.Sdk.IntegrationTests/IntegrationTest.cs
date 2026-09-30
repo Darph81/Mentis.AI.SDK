@@ -37,6 +37,13 @@ public abstract class IntegrationTest
 
     private GrpcChannel? _channel;
 
+    /// <summary>
+    /// Creates a client for another tenant on the same retrying channel (e.g. a tenant with special
+    /// settings). The caller disposes it; the shared channel stays open.
+    /// </summary>
+    protected MentisClient CreateClient(string apiKey) =>
+        new(_channel!, new MentisClientOptions { ApiKey = apiKey });
+
     /// <summary>Cancels a test that hangs; LLM tests use a longer budget.</summary>
     protected CancellationToken Timeout { get; private set; }
 
