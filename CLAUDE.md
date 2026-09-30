@@ -52,6 +52,8 @@ Directory.Build.props            shared build settings (net10.0, nullable, analy
 Directory.Packages.props         central package versions
 global.json
 .editorconfig                    code style, copied from the Manager
+.github/workflows/ci.yml         CI: build, unit tests, pack
+scripts/protos.sh                check/sync the proto copies against the Manager
 src/Mentis.AI.Sdk/
   Protos/                        copies of the Manager's non-admin .proto files
   IMentisClient.cs, MentisClient.cs   entry point: .Documents / .Conversations / .Billing
@@ -112,9 +114,28 @@ public class; the service client implementations are `internal sealed`.
 `src/Mentis.AI.Sdk/Protos/` holds **copies** of
 `../SmartAI.Manager/src/Mentis.AI.Contracts/Protos/{document,conversation,billing}.proto`.
 The SDK must build standalone (CI, other machines), so no relative link into
-the Manager tree. When the Manager's protos change:
+the Manager tree. `scripts/protos.sh` keeps the copies honest:
 
-1. Copy the three files over (never `admin.proto`).
+```bash
+scripts/protos.sh check --ref origin/main   # exit 1 + diff if the copies differ
+scripts/protos.sh sync  --ref origin/main   # overwrite the copies
+```
+
+- `--ref` reads the protos from that commit of the Manager repo. **Compare
+  against `origin/main`**, not the Manager's working tree: without `--ref`
+  the script uses whatever branch happens to be checked out there (often a
+  feature branch that is ahead of what is released). Run `git fetch` in the
+  Manager first.
+- The only allowed difference is the `csharp_namespace` line; `admin.proto`
+  is ignored. A new proto file in the Manager is reported as `MISSING`, a
+  copy without counterpart as `ORPHAN`.
+- The check is **local only**: both repos are private, so CI has no access
+  to the Manager. Run it before every release and whenever the Manager's
+  protos changed.
+
+When the check reports a difference:
+
+1. `scripts/protos.sh sync --ref origin/main` (never copy `admin.proto`).
 2. Build - the compiler will point at every mapping that needs updating.
 3. Update models, clients, the coverage table below and the README.
 
@@ -448,12 +469,19 @@ into the sections above. Keep the order unless the owner says otherwise.
   - [x] Ids are `Guid` throughout the public API (owner's decision).
   - [x] Transient `NotFound` during processing: fixed in the Manager
     (transactional `UpdateAsync`), **no SDK workaround** (owner's decision).
-- [ ] **2. Proto drift check.** Script (and later CI step) that compares
-  `src/Mentis.AI.Sdk/Protos/*.proto` with the Manager's copies
-  (`../SmartAI.Manager/src/Mentis.AI.Contracts/Protos/`), ignoring only the
-  `csharp_namespace` line, and fails on any difference.
-- [ ] **3. CI (GitHub Actions).** Build (Release), test and `dotnet pack` on
-  every PR and push to `main`.
+- [x] **2. Proto drift check.** `scripts/protos.sh check|sync` (see "Proto
+  files are copied, not linked"). Local only - CI cannot reach the private
+  Manager repo.
+- [x] **3. CI (GitHub Actions).** `.github/workflows/ci.yml`: build
+  (Release, warnings are errors), `dotnet test` (integration tests ignore
+  themselves without a Manager) and `dotnet pack` on every PR and push to
+  `main`; the package is uploaded as a build artifact.
+- [ ] **Pending Manager change - Phase 72 (`QueryScope`).** The Manager's
+  `feature/phase72` branch adds `enum QueryScope` and
+  `ChatMessage.query_scope` (only populated on the `SendMessage` response).
+  Not on the Manager's `main` yet (2026-09-30) - once merged: sync the
+  protos, add a public `QueryScope` enum (`Unknown = 0`) and
+  `ChatMessage.QueryScope`, map it, test it, update the README.
 - [ ] **4. Package metadata.** `RepositoryUrl`, `PackageProjectUrl`,
   optional icon, `CHANGELOG.md`.
 - [ ] **5. Close test gaps.** Untested so far: `LinkDocumentAsync`,
