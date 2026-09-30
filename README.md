@@ -265,6 +265,14 @@ dotnet build
 dotnet test tests/Mentis.AI.Sdk.Tests
 ```
 
+The proto files under `src/Mentis.AI.Sdk/Protos` are copies of the Manager's.
+With the Manager repository checked out next to this one, verify or update them:
+
+```bash
+scripts/protos.sh check --ref origin/main
+scripts/protos.sh sync  --ref origin/main
+```
+
 ### Integration tests and sample
 
 Both run against a real Manager. Put the connection of a **dedicated test
