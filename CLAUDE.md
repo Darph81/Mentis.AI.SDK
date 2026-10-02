@@ -248,7 +248,11 @@ following page (before this fix it returned page 1 over and over, i.e.
 duplicates instead of all items, once there were more than 20). Page size is
 limited to 1-100 by the server's validators. Order is the Manager's (verified): documents, conversations and
 messages **newest first**; chunks in document order (`SequenceNumber`);
-`GetAsync` on a conversation returns its messages chronologically. Page numbers are 1-based; `0`/unset lets the server apply its
+`Conversation.Messages` (from `GetAsync`) is chronological because the **SDK
+sorts it** by `CreatedAt`: the Manager returns a conversation's messages in
+database order (EF owned collection without `OrderBy`, effectively random with
+GUID keys on SQLite) - verified, it flipped between runs. Only the Manager's
+export sorts explicitly. Page numbers are 1-based; `0`/unset lets the server apply its
 defaults (documents/conversations: 20, chunks/messages: 50) - do not
 duplicate those defaults in the SDK. Convenience `IAsyncEnumerable<T>`
 enumerators (`EnumerateAsync`) walk all pages.
