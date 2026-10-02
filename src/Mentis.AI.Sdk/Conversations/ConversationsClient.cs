@@ -127,7 +127,8 @@ internal sealed class ConversationsClient : IConversationsClient
         Paging.ValidatePaging(pageNumber: null, pageSize);
 
         return Paging.EnumerateAsync(
-            (page, ct) => ListAsync(page, pageSize, titleContains, ct),
+            (page, size, ct) => ListAsync(page, size, titleContains, ct),
+            pageSize,
             cancellationToken);
     }
 

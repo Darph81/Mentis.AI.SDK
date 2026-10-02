@@ -44,7 +44,8 @@ internal static class ProtoMapper
         Title = conversation.Title,
         CreatedAt = ToDateTimeOffset(conversation.CreatedAt),
         LinkedDocumentIds = [.. conversation.LinkedDocumentIds.Select(ParseId)],
-        Messages = [.. conversation.Messages.Select(ToModel)],
+        // The Manager returns messages in database order, which is not chronological - sort them here.
+        Messages = [.. conversation.Messages.Select(ToModel).OrderBy(m => m.CreatedAt)],
         TenantId = ParseId(conversation.TenantId),
         OwnerUserId = conversation.HasOwnerUserId ? ParseOptionalId(conversation.OwnerUserId) : null,
     };
@@ -67,6 +68,7 @@ internal static class ProtoMapper
         Content = message.Content,
         CreatedAt = ToDateTimeOffset(message.CreatedAt),
         Citations = [.. message.Citations.Select(ToModel)],
+        QueryScope = ToEnum<QueryScope>((int)message.QueryScope),
     };
 
     public static Citation ToModel(this Proto.Citation citation) => new()

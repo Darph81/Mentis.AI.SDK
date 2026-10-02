@@ -40,7 +40,7 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
         _ownedChannel = GrpcChannel.ForAddress(options.Endpoint, channelOptions);
         CallInvoker invoker = _ownedChannel.Intercept(new MentisCallInterceptor(apiKey, options.Timeout));
 
-        Documents = new DocumentsClient(new Proto.DocumentService.DocumentServiceClient(invoker));
+        Documents = new DocumentsClient(new Proto.DocumentService.DocumentServiceClient(invoker), MentisClientOptions.TenantIdOf(apiKey));
         Conversations = new ConversationsClient(new Proto.ConversationService.ConversationServiceClient(invoker));
         Billing = new BillingClient(new Proto.BillingService.BillingServiceClient(invoker));
     }
@@ -60,7 +60,7 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
 
         CallInvoker invoker = channel.Intercept(new MentisCallInterceptor(apiKey, options.Timeout));
 
-        Documents = new DocumentsClient(new Proto.DocumentService.DocumentServiceClient(invoker));
+        Documents = new DocumentsClient(new Proto.DocumentService.DocumentServiceClient(invoker), MentisClientOptions.TenantIdOf(apiKey));
         Conversations = new ConversationsClient(new Proto.ConversationService.ConversationServiceClient(invoker));
         Billing = new BillingClient(new Proto.BillingService.BillingServiceClient(invoker));
     }

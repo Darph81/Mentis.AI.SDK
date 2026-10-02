@@ -144,11 +144,14 @@ documents.GetAsync("d1", Arg.Any<CancellationToken>()).Returns(new Document { ..
 var doc = await client.Documents.UploadAsync("notes.md");
 var doc2 = await client.Documents.UploadAsync(stream, "report.docx", title: "Q3 Report");
 
-// List with optional filters (1-based paging)
+// List with optional filters (newest first; pageNumber needs pageSize, max. 100 per page)
 var page = await client.Documents.ListAsync(status: DocumentStatus.Ready, titleContains: "report");
+var hits = await client.Documents.ListAsync(textContains: "handbook");   // title OR file name
+var own  = await client.Documents.ListAsync(scope: QueryScope.Tenant);  // only your own documents
+var page3 = await client.Documents.ListAsync(pageNumber: 3, pageSize: 50);
 
 // Or iterate over all pages
-await foreach (var d in client.Documents.EnumerateAsync())
+await foreach (var d in client.Documents.EnumerateAsync(scope: QueryScope.Global))
 {
     Console.WriteLine($"{d.Title} ({d.Status})");
 }
@@ -190,6 +193,12 @@ string markdown = await alice.ExportMarkdownAsync(chat.Id);
 `SendMessageAsync` optionally accepts a `model` override (must be allowed by
 the Manager deployment) and an `odataSecret` for tenants with a configured
 OData data source.
+
+Answers draw on your own documents and the global documents shared with every
+tenant - linking documents to a conversation does not limit that. The Manager
+classifies each question and may search only your own or only the global
+documents; the answer reports this as `reply.QueryScope` (`Tenant`, `Global`
+or `Both`).
 
 ### Billing
 

@@ -1,3 +1,5 @@
+using Google.Protobuf.WellKnownTypes;
+
 using Grpc.Core;
 
 using NSubstitute;
@@ -68,6 +70,7 @@ public class ConversationsClientTests
                 {
                     Id = TestIds.Message1.ToString(),
                     Role = Proto.MessageRole.Assistant,
+                    QueryScope = Proto.QueryScope.Tenant,
                     Content = "20 days.",
                     Citations =
                     {
@@ -83,6 +86,7 @@ public class ConversationsClientTests
         sent.OdataSecret.ShouldBe("s3cret");
         sent.HasUserId.ShouldBeFalse();
         answer.Role.ShouldBe(MessageRole.Assistant);
+        answer.QueryScope.ShouldBe(QueryScope.Tenant);
         answer.Citations[0].DocumentTitle.ShouldBe("Handbook");
         answer.Citations[1].DocumentTitle.ShouldBeNull();
         answer.Citations[0].DocumentId.ShouldBe(TestIds.Document1);
@@ -126,6 +130,29 @@ public class ConversationsClientTests
         string markdown = await _client.ExportMarkdownAsync(TestIds.Conversation1);
 
         markdown.ShouldBe("# Chat");
+    }
+
+    [Test]
+    public async Task GetAsync_ReturnsMessagesInChronologicalOrder()
+    {
+        var older = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
+        _grpc.GetConversationByIdAsync(Arg.Any<Proto.GetConversationByIdRequest>(), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.GetConversationByIdResponse
+            {
+                Conversation = new Proto.Conversation
+                {
+                    Id = TestIds.Conversation1.ToString(),
+                    Messages =
+                    {
+                        new Proto.ChatMessage { Id = TestIds.Message1.ToString(), Role = Proto.MessageRole.Assistant, CreatedAt = Timestamp.FromDateTimeOffset(older.AddSeconds(5)) },
+                        new Proto.ChatMessage { Id = TestIds.Message1.ToString(), Role = Proto.MessageRole.User, CreatedAt = Timestamp.FromDateTimeOffset(older) },
+                    },
+                },
+            }));
+
+        Conversation conversation = await _client.GetAsync(TestIds.Conversation1);
+
+        conversation.Messages.Select(m => m.Role).ShouldBe([MessageRole.User, MessageRole.Assistant]);
     }
 
     [Test]

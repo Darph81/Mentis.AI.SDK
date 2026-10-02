@@ -46,27 +46,46 @@ public interface IDocumentsClient
         IEnumerable<Guid> documentIds,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Lists one page of documents, newest first.</summary>
-    /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
-    /// <param name="pageSize">Items per page; the server defaults to 20.</param>
+    /// <summary>
+    /// Lists one page of the documents the tenant can see - its own and the global ones - newest first.
+    /// All filters can be combined.
+    /// </summary>
+    /// <param name="pageNumber">1-based page number; requires <paramref name="pageSize"/>. Defaults to 1.</param>
+    /// <param name="pageSize">Items per page (1-100); the server defaults to 20.</param>
     /// <param name="status">Only return documents in this state.</param>
     /// <param name="titleContains">Only return documents whose title contains this text (case-insensitive).</param>
+    /// <param name="textContains">
+    /// Only return documents whose title <b>or</b> file name contains this text (case-insensitive) - suited for
+    /// search boxes.
+    /// </param>
+    /// <param name="scope">
+    /// <see cref="QueryScope.Tenant"/> for only the tenant's own documents, <see cref="QueryScope.Global"/> for
+    /// only the global ones; <see langword="null"/> or <see cref="QueryScope.Both"/> for all.
+    /// </param>
     /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <exception cref="ArgumentException"><paramref name="pageNumber"/> is set without <paramref name="pageSize"/>.</exception>
     Task<PagedResult<Document>> ListAsync(
         int? pageNumber = null,
         int? pageSize = null,
         DocumentStatus? status = null,
         string? titleContains = null,
+        string? textContains = null,
+        QueryScope? scope = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Iterates over all documents, fetching further pages as needed.</summary>
+    /// <summary>Iterates over all documents, fetching further pages as needed. Filters as in <see cref="ListAsync"/>.</summary>
     /// <param name="status">Only return documents in this state.</param>
     /// <param name="titleContains">Only return documents whose title contains this text (case-insensitive).</param>
-    /// <param name="pageSize">Items fetched per call; the server default is used when omitted.</param>
+    /// <param name="textContains">Only return documents whose title or file name contains this text (case-insensitive).</param>
+    /// <param name="scope">Only the tenant's own (<see cref="QueryScope.Tenant"/>) or only global documents
+    /// (<see cref="QueryScope.Global"/>); <see langword="null"/> for all.</param>
+    /// <param name="pageSize">Items fetched per call (1-100); the server default is used when omitted.</param>
     /// <param name="cancellationToken">Cancels the enumeration.</param>
     IAsyncEnumerable<Document> EnumerateAsync(
         DocumentStatus? status = null,
         string? titleContains = null,
+        string? textContains = null,
+        QueryScope? scope = null,
         int? pageSize = null,
         CancellationToken cancellationToken = default);
 
@@ -95,8 +114,8 @@ public interface IDocumentsClient
 
     /// <summary>Lists one page of the chunks a document was split into, in document order.</summary>
     /// <param name="documentId">The document.</param>
-    /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
-    /// <param name="pageSize">Items per page; the server defaults to 50.</param>
+    /// <param name="pageNumber">1-based page number; requires <paramref name="pageSize"/>. Defaults to 1.</param>
+    /// <param name="pageSize">Items per page (1-100); the server defaults to 50.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     Task<PagedResult<DocumentChunk>> GetChunksAsync(
         Guid documentId,

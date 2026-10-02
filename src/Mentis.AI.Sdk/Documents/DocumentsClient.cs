@@ -23,10 +23,14 @@ internal sealed class DocumentsClient : IDocumentsClient
     };
 
     private readonly Proto.DocumentService.DocumentServiceClient _client;
+    private readonly Guid _tenantId;
 
-    internal DocumentsClient(Proto.DocumentService.DocumentServiceClient client)
+    /// <param name="client">The generated gRPC client.</param>
+    /// <param name="tenantId">The calling tenant - needed for <see cref="QueryScope.Tenant"/> list filters.</param>
+    internal DocumentsClient(Proto.DocumentService.DocumentServiceClient client, Guid tenantId)
     {
         _client = client;
+        _tenantId = tenantId;
     }
 
     /// <inheritdoc />
@@ -105,9 +109,15 @@ internal sealed class DocumentsClient : IDocumentsClient
         int? pageSize = null,
         DocumentStatus? status = null,
         string? titleContains = null,
+        string? textContains = null,
+        QueryScope? scope = null,
         CancellationToken cancellationToken = default)
     {
         Paging.ValidatePaging(pageNumber, pageSize);
+        if (scope == QueryScope.Unknown)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scope), scope, "Use null or QueryScope.Both for no scope filter.");
+        }
 
         var request = new Proto.ListDocumentsRequest
         {
@@ -115,7 +125,17 @@ internal sealed class DocumentsClient : IDocumentsClient
             PageSize = pageSize ?? 0,
             StatusFilter = (Proto.DocumentStatus)(status ?? DocumentStatus.Unknown),
             TitleContains = titleContains ?? string.Empty,
+            TextContains = textContains ?? string.Empty,
         };
+
+        if (scope == QueryScope.Tenant)
+        {
+            request.TenantId = _tenantId.ToString();
+        }
+        else if (scope == QueryScope.Global)
+        {
+            request.GlobalOnly = true;
+        }
 
         Proto.ListDocumentsResponse response = await RpcInvoker.InvokeAsync(
             _client.ListDocumentsAsync(request, cancellationToken: cancellationToken),
@@ -134,13 +154,16 @@ internal sealed class DocumentsClient : IDocumentsClient
     public IAsyncEnumerable<Document> EnumerateAsync(
         DocumentStatus? status = null,
         string? titleContains = null,
+        string? textContains = null,
+        QueryScope? scope = null,
         int? pageSize = null,
         CancellationToken cancellationToken = default)
     {
         Paging.ValidatePaging(pageNumber: null, pageSize);
 
         return Paging.EnumerateAsync(
-            (page, ct) => ListAsync(page, pageSize, status, titleContains, ct),
+            (page, size, ct) => ListAsync(page, size, status, titleContains, textContains, scope, ct),
+            pageSize,
             cancellationToken);
     }
 

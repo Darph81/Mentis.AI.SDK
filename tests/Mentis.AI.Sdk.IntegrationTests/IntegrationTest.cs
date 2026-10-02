@@ -138,11 +138,11 @@ public abstract class IntegrationTest
     /// Uploads a small text document with unique content (the Manager rejects byte-identical
     /// uploads across all tenants) and registers it for cleanup.
     /// </summary>
-    protected async Task<Document> UploadTextAsync(string text, string? title = null)
+    protected async Task<Document> UploadTextAsync(string text, string? title = null, string fileName = "sdk-integration-test.txt")
     {
         string unique = $"{text}\n\nTest run marker: {Guid.NewGuid()}";
         using var content = new MemoryStream(Encoding.UTF8.GetBytes(unique));
-        Document document = await Client.Documents.UploadAsync(content, "sdk-integration-test.txt", title ?? UniqueTitle(), cancellationToken: Timeout);
+        Document document = await Client.Documents.UploadAsync(content, fileName, title ?? UniqueTitle(), cancellationToken: Timeout);
         _documentIds.Add(document.Id);
         return document;
     }
