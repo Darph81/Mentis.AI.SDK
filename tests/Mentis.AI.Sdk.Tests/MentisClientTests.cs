@@ -21,9 +21,25 @@ public class MentisClientTests
     [Test]
     public void Options_ApiKey_TakesPrecedence()
     {
-        var options = new MentisClientOptions { ApiKey = "a.b", TenantId = TestIds.Tenant1, Secret = "secret" };
+        string apiKey = $"{TestIds.Tenant1}.from-api-key";
+        var options = new MentisClientOptions { ApiKey = apiKey, TenantId = Guid.NewGuid(), Secret = "secret" };
 
-        options.GetValidatedApiKey().ShouldBe("a.b");
+        options.GetValidatedApiKey().ShouldBe(apiKey);
+    }
+
+    [TestCase("not-a-guid.secret")]
+    [TestCase("00000000-0000-0000-0000-000000000000.secret")]
+    [TestCase("7e700000-0000-0000-0000-000000000001")]
+    [TestCase("7e700000-0000-0000-0000-000000000001.")]
+    public void Constructor_WithMalformedApiKey_Throws(string apiKey)
+    {
+        Should.Throw<ArgumentException>(() => new MentisClient(new MentisClientOptions { ApiKey = apiKey }));
+    }
+
+    [Test]
+    public void TenantIdOf_ReadsThePrincipal()
+    {
+        MentisClientOptions.TenantIdOf($"{TestIds.Tenant1}.secret.with.dots").ShouldBe(TestIds.Tenant1);
     }
 
     [Test]
@@ -35,7 +51,7 @@ public class MentisClientTests
     [Test]
     public void Constructor_WithNonHttpEndpoint_Throws()
     {
-        var options = new MentisClientOptions { Endpoint = new Uri("ftp://localhost"), ApiKey = "a.b" };
+        var options = new MentisClientOptions { Endpoint = new Uri("ftp://localhost"), ApiKey = $"{TestIds.Tenant1}.secret" };
 
         Should.Throw<ArgumentException>(() => new MentisClient(options));
     }
@@ -43,7 +59,7 @@ public class MentisClientTests
     [Test]
     public async Task Constructor_WithValidOptions_ExposesServiceClients()
     {
-        await using var client = new MentisClient(new MentisClientOptions { ApiKey = "a.b" });
+        await using var client = new MentisClient(new MentisClientOptions { ApiKey = $"{TestIds.Tenant1}.secret" });
 
         client.Documents.ShouldNotBeNull();
         client.Conversations.UserId.ShouldBeNull();
@@ -54,7 +70,7 @@ public class MentisClientTests
     public async Task AddMentisClient_RegistersClientAndServiceClients()
     {
         var services = new ServiceCollection();
-        services.AddMentisClient(o => o.ApiKey = "a.b");
+        services.AddMentisClient(o => o.ApiKey = $"{TestIds.Tenant1}.secret");
 
         await using ServiceProvider provider = services.BuildServiceProvider();
 

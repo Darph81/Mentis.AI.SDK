@@ -59,6 +59,7 @@ public sealed class MentisClientOptions
 
         if (!string.IsNullOrWhiteSpace(ApiKey))
         {
+            _ = TenantIdOf(ApiKey);
             return ApiKey;
         }
 
@@ -68,5 +69,17 @@ public sealed class MentisClientOptions
         }
 
         return $"{tenantId}.{Secret}";
+    }
+
+    /// <summary>The tenant id of an API key <c>&lt;tenantId&gt;.&lt;secret&gt;</c>.</summary>
+    internal static Guid TenantIdOf(string apiKey)
+    {
+        int separator = apiKey.IndexOf('.', StringComparison.Ordinal);
+        return separator > 0
+            && Guid.TryParse(apiKey.AsSpan(0, separator), out Guid tenantId)
+            && tenantId != Guid.Empty
+            && separator < apiKey.Length - 1
+            ? tenantId
+            : throw new ArgumentException("ApiKey must have the form <tenantId>.<secret>.", nameof(apiKey));
     }
 }

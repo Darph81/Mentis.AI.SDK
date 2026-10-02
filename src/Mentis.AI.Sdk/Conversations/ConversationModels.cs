@@ -55,6 +55,13 @@ public sealed record ChatMessage
 
     /// <summary>Document passages the message is based on (assistant messages only).</summary>
     public required IReadOnlyList<Citation> Citations { get; init; }
+
+    /// <summary>
+    /// Which documents the Manager searched to answer this message, classified from the question: only the
+    /// tenant's own, only the global ones, or both. Only set on the answer returned by
+    /// <see cref="IConversationsClient.SendMessageAsync"/>; <see cref="QueryScope.Unknown"/> when read back later.
+    /// </summary>
+    public QueryScope QueryScope { get; init; }
 }
 
 /// <summary>A conversation including its messages.</summary>

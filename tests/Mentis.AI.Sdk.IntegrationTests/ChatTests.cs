@@ -23,9 +23,11 @@ public class ChatTests : IntegrationTest
             conversation.Id, "Up to how much is a hotel night reimbursed?", cancellationToken: Timeout);
 
         answer.Role.ShouldBe(MessageRole.Assistant);
+        answer.QueryScope.ShouldNotBe(QueryScope.Unknown);
+        TestContext.Out.WriteLine($"Query scope: {answer.QueryScope}");
         answer.Content.ShouldNotBeNullOrWhiteSpace();
-        // The Manager searches every document the tenant can see (own + global), not only the
-        // linked ones, so other documents may be cited as well. Ours must be among them.
+        // The Manager searches the tenant's own and/or the global documents (see QueryScope), never
+        // only the linked ones, so other documents may be cited as well. Ours must be among them.
         answer.Citations.ShouldContain(c => c.DocumentId == document.Id && c.DocumentTitle == "Contoso Travel Policy");
         answer.Citations.ShouldAllBe(c => c.DocumentTitle != null);
 

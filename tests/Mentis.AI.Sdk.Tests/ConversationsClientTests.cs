@@ -68,6 +68,7 @@ public class ConversationsClientTests
                 {
                     Id = TestIds.Message1.ToString(),
                     Role = Proto.MessageRole.Assistant,
+                    QueryScope = Proto.QueryScope.Tenant,
                     Content = "20 days.",
                     Citations =
                     {
@@ -83,6 +84,7 @@ public class ConversationsClientTests
         sent.OdataSecret.ShouldBe("s3cret");
         sent.HasUserId.ShouldBeFalse();
         answer.Role.ShouldBe(MessageRole.Assistant);
+        answer.QueryScope.ShouldBe(QueryScope.Tenant);
         answer.Citations[0].DocumentTitle.ShouldBe("Handbook");
         answer.Citations[1].DocumentTitle.ShouldBeNull();
         answer.Citations[0].DocumentId.ShouldBe(TestIds.Document1);

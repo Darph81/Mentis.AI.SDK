@@ -240,7 +240,13 @@ created `MentisClient` only.
 ### Paging
 
 List RPCs return `PagedResult<T>` (`Items`, `TotalCount`, `PageNumber`,
-`PageSize`). Order is the Manager's (verified): documents, conversations and
+`PageSize`). **The Manager ignores `page_number` unless `page_size` is sent
+as well** (all four list RPCs fall back to page 1 + default size) - so
+`ListAsync` rejects a page number without a page size, and `EnumerateAsync`
+sends the page size the server applied to page 1 explicitly for every
+following page (before this fix it returned page 1 over and over, i.e.
+duplicates instead of all items, once there were more than 20). Page size is
+limited to 1-100 by the server's validators. Order is the Manager's (verified): documents, conversations and
 messages **newest first**; chunks in document order (`SequenceNumber`);
 `GetAsync` on a conversation returns its messages chronologically. Page numbers are 1-based; `0`/unset lets the server apply its
 defaults (documents/conversations: 20, chunks/messages: 50) - do not
@@ -275,6 +281,24 @@ as `InnerException`. Cancellation via the caller's token surfaces as
 Note the Manager's "never reveal whether another id exists" policy: a
 document/conversation of another tenant yields `NotFound`, not
 `PermissionDenied`.
+
+### `QueryScope` and the document list filters
+
+`QueryScope` (`Unknown = 0`, `Global = 1`, `Tenant = 2`, `Both = 3` - the
+proto values) is used twice: as `ChatMessage.QueryScope` (which documents a
+`SendMessage` answer searched) and as the `scope` filter of
+`Documents.ListAsync`/`EnumerateAsync` (`Tenant` = own documents only,
+`Global` = global only, `null`/`Both` = all; `Unknown` is rejected). One enum
+for one concept instead of two look-alikes.
+
+- `scope: Tenant` is sent as `tenant_id` = the caller's own tenant id, which
+  `MentisClient` takes from `TenantId` or the `ApiKey` principal
+  (`MentisClientOptions.TenantIdOf`). The `ApiKey` is therefore validated as
+  `<guid>.<secret>` when the client is created. Another tenant's id would
+  only ever return an empty list (visibility runs first), so it is not
+  exposed; `tenant_id` + `global_only` together are a server validation error.
+- `textContains` matches title **or** file name (search boxes);
+  `titleContains` only the title. All filters combine.
 
 ### Billing
 
@@ -388,12 +412,16 @@ Verified against a running Manager (2026-09-28):
 - **LLM errors**: when the provider fails (e.g. the Ollama model is not
   pulled), `SendMessage` returns `Internal` / `LlmProvider.Failed` with the
   provider's message.
-- **`SendMessage` searches every document the tenant can see** - its own
-  plus all global ones (Manager Phase 53) - not only the conversation's
-  linked documents. Linking is bookkeeping only (`GetLinkedToDocumentAsync`).
-  Citations are simply the top-5 vector search hits handed to the model as
-  context, not passages the answer provably used - so global documents can
-  show up in any tenant's citations. Tests must assert "contains my
+- **`SendMessage` searches the tenant's own and/or the global documents**,
+  never only the conversation's linked documents (linking is bookkeeping
+  only, `GetLinkedToDocumentAsync`). Since Manager Phase 72 every question is
+  classified first and the search may be narrowed to only the tenant's own
+  (`QueryScope.Tenant`) or only the global documents (`QueryScope.Global`);
+  `Both` searches all visible documents. The result is reported as
+  `ChatMessage.QueryScope` - only on the `SendMessage` response, `Unknown`
+  when read back (same "response-only" rule as `Citation.DocumentTitle`).
+  Citations are the top-5 vector search hits handed to the model as context,
+  not passages the answer provably used. Tests must assert "contains my
   document", never "only my document".
 - Error detail format `"<Code>: <Message>"` and the `validation-error-<field>`
   trailers (e.g. `newtitle`) are confirmed. Errors raised directly in the
@@ -476,12 +504,9 @@ into the sections above. Keep the order unless the owner says otherwise.
   (Release, warnings are errors), `dotnet test` (integration tests ignore
   themselves without a Manager) and `dotnet pack` on every PR and push to
   `main`; the package is uploaded as a build artifact.
-- [ ] **Pending Manager change - Phase 72 (`QueryScope`).** The Manager's
-  `feature/phase72` branch adds `enum QueryScope` and
-  `ChatMessage.query_scope` (only populated on the `SendMessage` response).
-  Not on the Manager's `main` yet (2026-09-30) - once merged: sync the
-  protos, add a public `QueryScope` enum (`Unknown = 0`) and
-  `ChatMessage.QueryScope`, map it, test it, update the README.
+- [x] **Manager Phase 72 + list filters synced (2026-10-02).** `QueryScope`
+  (`ChatMessage.QueryScope`, list `scope` filter), `textContains`, and the
+  paging fix (see "Paging").
 - [ ] **4. Package metadata.** `RepositoryUrl`, `PackageProjectUrl`,
   optional icon, `CHANGELOG.md`.
 - [ ] **5. Close test gaps.** Untested so far: `LinkDocumentAsync`,

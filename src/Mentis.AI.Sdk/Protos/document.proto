@@ -70,6 +70,20 @@ message ListDocumentsRequest {
   // Optional. Empty/unset means no filter. Case-insensitive substring match.
   // Can be combined with status_filter.
   string title_contains = 4;
+  // Phase 73-adjacent. Narrows the already-visible set (admin: everything,
+  // a tenant: its own + every global document) to just one tenant's own
+  // documents. Mutually exclusive with global_only. A caller with no
+  // visibility into the given tenant simply gets an empty result, not an
+  // error - see ListDocumentsQuery's own remarks.
+  optional string tenant_id = 5;
+  // Phase 73-adjacent. Narrows the already-visible set to only documents
+  // with no owning tenant (global documents). Mutually exclusive with
+  // tenant_id.
+  bool global_only = 6;
+  // Optional. Empty/unset means no filter. Case-insensitive substring match
+  // against the title OR the file name (title_contains only looks at the
+  // title). Can be combined with every other filter.
+  string text_contains = 7;
 }
 
 message ListDocumentsResponse {

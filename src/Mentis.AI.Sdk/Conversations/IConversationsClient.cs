@@ -8,9 +8,10 @@ namespace Mentis.AI.Sdk;
 /// visible to every user of the tenant. Use <see cref="ForUser"/> to work with the conversations of one
 /// end user of your application instead.
 /// <para>
-/// Answers always draw on <b>every document the tenant can see</b> - its own and all global documents.
-/// Linking documents to a conversation does not narrow that search; links are bookkeeping only
-/// (see <see cref="GetLinkedToDocumentAsync"/>).
+/// Answers draw on the documents the tenant can see - its own and the global ones. For every message the
+/// Manager classifies the question and may narrow the search to only the tenant's own or only the global
+/// documents (reported as <see cref="ChatMessage.QueryScope"/>). Linking documents to a conversation does
+/// not influence that search; links are bookkeeping only (see <see cref="GetLinkedToDocumentAsync"/>).
 /// </para>
 /// </remarks>
 public interface IConversationsClient
@@ -30,7 +31,7 @@ public interface IConversationsClient
     /// <summary>Starts a new conversation.</summary>
     /// <param name="title">Display title.</param>
     /// <param name="documentIds">
-    /// Documents to link right away (bookkeeping only - answers search all visible documents).
+    /// Documents to link right away (bookkeeping only - it does not influence which documents answers draw on).
     /// If any does not exist, nothing is created.
     /// </param>
     /// <param name="cancellationToken">Cancels the operation.</param>
@@ -48,8 +49,8 @@ public interface IConversationsClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Lists one page of conversations (without messages), newest first.</summary>
-    /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
-    /// <param name="pageSize">Items per page; the server defaults to 20.</param>
+    /// <param name="pageNumber">1-based page number; requires <paramref name="pageSize"/>. Defaults to 1.</param>
+    /// <param name="pageSize">Items per page (1-100); the server defaults to 20.</param>
     /// <param name="titleContains">Only return conversations whose title contains this text (case-insensitive).</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     Task<PagedResult<ConversationSummary>> ListAsync(
@@ -60,7 +61,7 @@ public interface IConversationsClient
 
     /// <summary>Iterates over all conversations, fetching further pages as needed.</summary>
     /// <param name="titleContains">Only return conversations whose title contains this text (case-insensitive).</param>
-    /// <param name="pageSize">Items fetched per call; the server default is used when omitted.</param>
+    /// <param name="pageSize">Items fetched per call (1-100); the server default is used when omitted.</param>
     /// <param name="cancellationToken">Cancels the enumeration.</param>
     IAsyncEnumerable<ConversationSummary> EnumerateAsync(
         string? titleContains = null,
@@ -105,9 +106,10 @@ public interface IConversationsClient
     /// </param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
-    /// The assistant's answer. <see cref="ChatMessage.Citations"/> are the top search hits across all documents
-    /// the tenant can see (own and global) that were given to the model as context - not necessarily passages
-    /// the answer actually used.
+    /// The assistant's answer. <see cref="ChatMessage.QueryScope"/> tells which documents were searched (own,
+    /// global or both, classified from the question); <see cref="ChatMessage.Citations"/> are the top search hits
+    /// from those documents that were given to the model as context - not necessarily passages the answer
+    /// actually used.
     /// </returns>
     Task<ChatMessage> SendMessageAsync(
         Guid conversationId,
@@ -121,8 +123,8 @@ public interface IConversationsClient
     /// all messages in chronological order.
     /// </summary>
     /// <param name="conversationId">The conversation.</param>
-    /// <param name="pageNumber">1-based page number; the server defaults to 1.</param>
-    /// <param name="pageSize">Items per page; the server defaults to 50.</param>
+    /// <param name="pageNumber">1-based page number; requires <paramref name="pageSize"/>. Defaults to 1.</param>
+    /// <param name="pageSize">Items per page (1-100); the server defaults to 50.</param>
     /// <param name="role">Only return messages with this role.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     Task<PagedResult<ChatMessage>> ListMessagesAsync(

@@ -67,6 +67,7 @@ internal static class ProtoMapper
         Content = message.Content,
         CreatedAt = ToDateTimeOffset(message.CreatedAt),
         Citations = [.. message.Citations.Select(ToModel)],
+        QueryScope = ToEnum<QueryScope>((int)message.QueryScope),
     };
 
     public static Citation ToModel(this Proto.Citation citation) => new()

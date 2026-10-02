@@ -20,7 +20,7 @@ public class DocumentsClientTests
     public void SetUp()
     {
         _grpc = Substitute.For<Proto.DocumentService.DocumentServiceClient>();
-        _client = new DocumentsClient(_grpc);
+        _client = new DocumentsClient(_grpc, TestIds.Tenant1);
     }
 
     [Test]
@@ -155,26 +155,73 @@ public class DocumentsClientTests
     }
 
     [Test]
-    public async Task EnumerateAsync_WalksAllPages()
+    [TestCase(null)]
+    [TestCase(2)]
+    public async Task EnumerateAsync_WalksAllPagesExactlyOnce(int? pageSize)
     {
+        Guid[] all = [.. Enumerable.Range(1, 5).Select(i => Guid.Parse($"d0c00000-0000-0000-0000-00000000000{i}"))];
+        var requests = new List<(int PageNumber, int PageSize)>();
         _grpc.ListDocumentsAsync(Arg.Any<Proto.ListDocumentsRequest>(), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(ci =>
             {
-                int page = ci.Arg<Proto.ListDocumentsRequest>()!.PageNumber;
-                var response = new Proto.ListDocumentsResponse { TotalCount = 3, PageNumber = page, PageSize = 2 };
-                response.Documents.AddRange(page == 1
-                    ? [new Proto.Document { Id = TestIds.Document1.ToString() }, new Proto.Document { Id = TestIds.Document2.ToString() }]
-                    : [new Proto.Document { Id = TestIds.Document3.ToString() }]);
+                var request = ci.Arg<Proto.ListDocumentsRequest>()!;
+                requests.Add((request.PageNumber, request.PageSize));
+
+                // Behaves like the Manager: the page number only counts when a page size is sent too;
+                // otherwise page 1 with the default size (2 in this fake) is returned.
+                bool explicitPage = request.PageNumber > 0 && request.PageSize > 0;
+                int number = explicitPage ? request.PageNumber : 1;
+                int size = explicitPage ? request.PageSize : 2;
+
+                var response = new Proto.ListDocumentsResponse { TotalCount = all.Length, PageNumber = number, PageSize = size };
+                response.Documents.AddRange(all.Skip((number - 1) * size).Take(size).Select(id => new Proto.Document { Id = id.ToString() }));
                 return GrpcTestCalls.Success(response);
             });
 
         var ids = new List<Guid>();
-        await foreach (Document document in _client.EnumerateAsync(pageSize: 2))
+        await foreach (Document document in _client.EnumerateAsync(pageSize: pageSize))
         {
             ids.Add(document.Id);
         }
 
-        ids.ShouldBe([TestIds.Document1, TestIds.Document2, TestIds.Document3]);
+        ids.ShouldBe(all);
+        requests.Skip(1).ShouldAllBe(r => r.PageSize == 2);
+    }
+
+    [Test]
+    public async Task ListAsync_PageNumberWithoutPageSize_ThrowsBeforeCallingServer()
+    {
+        await Should.ThrowAsync<ArgumentException>(() => _client.ListAsync(pageNumber: 2));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [TestCase(null, false, false)]
+    [TestCase(QueryScope.Both, false, false)]
+    [TestCase(QueryScope.Tenant, true, false)]
+    [TestCase(QueryScope.Global, false, true)]
+    public async Task ListAsync_Scope_SetsTenantOrGlobalFilter(QueryScope? scope, bool expectTenant, bool expectGlobal)
+    {
+        Proto.ListDocumentsRequest? sent = null;
+        _grpc.ListDocumentsAsync(Arg.Do<Proto.ListDocumentsRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.ListDocumentsResponse { PageNumber = 1, PageSize = 20 }));
+
+        await _client.ListAsync(scope: scope, textContains: "handbook");
+
+        sent!.HasTenantId.ShouldBe(expectTenant);
+        if (expectTenant)
+        {
+            sent.TenantId.ShouldBe(TestIds.Tenant1.ToString());
+        }
+
+        sent.GlobalOnly.ShouldBe(expectGlobal);
+        sent.TextContains.ShouldBe("handbook");
+    }
+
+    [Test]
+    public async Task ListAsync_UnknownScope_Throws()
+    {
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => _client.ListAsync(scope: QueryScope.Unknown));
     }
 
     [Test]
