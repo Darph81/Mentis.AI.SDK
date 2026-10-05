@@ -65,6 +65,13 @@ public sealed class MentisException : Exception
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> ValidationErrors { get; }
 
+    internal static MentisException DeadlineExceeded(Exception innerException) => new(
+        StatusCode.DeadlineExceeded,
+        errorCode: null,
+        "The call did not complete within the configured Timeout.",
+        NoValidationErrors,
+        innerException);
+
     internal static MentisException FromRpcException(RpcException exception)
     {
         // The Manager formats the status detail as "<ErrorCode>: <Message>".

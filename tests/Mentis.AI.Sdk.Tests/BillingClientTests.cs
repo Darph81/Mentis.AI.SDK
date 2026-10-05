@@ -77,4 +77,34 @@ public class BillingClientTests
 
         history.Select(u => u.Month).ShouldBe([9, 8]);
     }
+
+    [TestCase(0)]
+    [TestCase(-1)]
+    public async Task GetUsageAsync_NonPositiveYear_ThrowsBeforeCallingServer(int year)
+    {
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => _client.GetUsageAsync(year, 5));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [TestCase(0)]
+    [TestCase(13)]
+    public async Task GetUsageAsync_MonthOutOfRange_ThrowsBeforeCallingServer(int month)
+    {
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => _client.GetUsageAsync(2026, month));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task GetUsageHistoryAsync_ServerError_ThrowsMentisException()
+    {
+        _grpc.ListTenantUsageHistoryAsync(Arg.Any<Proto.ListTenantUsageHistoryRequest>(), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Failure<Proto.ListTenantUsageHistoryResponse>(StatusCode.Unauthenticated, "Auth.Invalid: bad token"));
+
+        MentisException ex = await Should.ThrowAsync<MentisException>(() => _client.GetUsageHistoryAsync());
+
+        ex.StatusCode.ShouldBe(StatusCode.Unauthenticated);
+        ex.ErrorCode.ShouldBe("Auth.Invalid");
+    }
 }

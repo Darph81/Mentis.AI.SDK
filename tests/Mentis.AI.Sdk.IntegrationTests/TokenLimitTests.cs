@@ -12,7 +12,7 @@ public class TokenLimitTests : IntegrationTest
     private MentisClient _limited = null!;
 
     [OneTimeSetUp]
-    public void OneTimeSetUpLimitedClient()
+    public async Task OneTimeSetUpLimitedClient()
     {
         string? apiKey = Environment.GetEnvironmentVariable("MENTIS_LIMIT_API_KEY");
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -21,6 +21,16 @@ public class TokenLimitTests : IntegrationTest
         }
 
         _limited = CreateClient(apiKey);
+
+        // Fail with a clear message instead of confusing assertion errors when the keys are mixed up.
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+        TenantUsage usage = await _limited.Billing.GetUsageAsync(cancellationToken: cts.Token);
+        if (usage.MonthlyTokenLimit != 0)
+        {
+            Assert.Fail(
+                $"MENTIS_LIMIT_API_KEY must belong to a tenant with a monthly token limit of 0, but tenant {usage.TenantId} " +
+                $"has {(usage.MonthlyTokenLimit is { } limit ? limit : "no limit")}. Are MENTIS_API_KEY and MENTIS_LIMIT_API_KEY swapped?");
+        }
     }
 
     [OneTimeTearDown]
@@ -31,15 +41,17 @@ public class TokenLimitTests : IntegrationTest
     {
         TenantUsage usage = await _limited.Billing.GetUsageAsync(cancellationToken: Timeout);
 
-        // A limit of 0 must not be confused with "no limit" (null).
+        // A limit of 0 must not be confused with "no limit" (null). The usage itself may be above 0 (tokens
+        // used before the limit was lowered) - only the limit matters here.
         usage.MonthlyTokenLimit.ShouldBe(0);
-        usage.TotalTokens.ShouldBe(0);
+        usage.TotalTokens.ShouldBeGreaterThanOrEqualTo(0);
     }
 
     [Test]
     public async Task SendMessage_WhenLimitIsReached_ThrowsAndStoresNothing()
     {
         Conversation conversation = await StartConversationAsync(_limited.Conversations);
+        long tokensBefore = (await _limited.Billing.GetUsageAsync(cancellationToken: Timeout)).TotalTokens;
 
         MentisException ex = await Should.ThrowAsync<MentisException>(
             () => _limited.Conversations.SendMessageAsync(conversation.Id, "Hello?", cancellationToken: Timeout));
@@ -49,7 +61,7 @@ public class TokenLimitTests : IntegrationTest
 
         // The rejected message is not stored and costs nothing.
         (await _limited.Conversations.GetAsync(conversation.Id, Timeout)).Messages.ShouldBeEmpty();
-        (await _limited.Billing.GetUsageAsync(cancellationToken: Timeout)).TotalTokens.ShouldBe(0);
+        (await _limited.Billing.GetUsageAsync(cancellationToken: Timeout)).TotalTokens.ShouldBe(tokensBefore);
     }
 
     [Test]

@@ -15,6 +15,12 @@ internal static class RpcInvoker
             {
                 return await call.ResponseAsync.ConfigureAwait(false);
             }
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Only reached on external channels created with ThrowOperationCanceledOnCancellation: the caller did
+                // not cancel, so the configured Timeout (a deadline) expired.
+                throw MentisException.DeadlineExceeded(ex);
+            }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled && cancellationToken.IsCancellationRequested)
             {
                 throw new OperationCanceledException(ex.Status.Detail, ex, cancellationToken);

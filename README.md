@@ -243,6 +243,7 @@ catch (MentisException ex) when (ex.ValidationErrors.Count > 0)
 | `PermissionDenied`   | Not allowed, e.g. modifying a global document              |
 | `Internal`           | Server-side failure (e.g. the LLM provider failed)         |
 | `ResourceExhausted`  | Rate limit hit (`ErrorCode` = `RateLimit.Exceeded`) - safe to retry after the wait in the message; also raised for oversized messages |
+| `DeadlineExceeded`   | The configured `Timeout` expired                           |
 | `Unavailable`        | Manager unreachable                                        |
 
 Cancelling via a `CancellationToken` throws `OperationCanceledException`.

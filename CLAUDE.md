@@ -171,9 +171,19 @@ generated C#.
   The client's receive limit is 4 MB by default (matters for
   `GetContentAsync`). `MentisClientOptions` exposes
   `MaxSendMessageSizeBytes` / `MaxReceiveMessageSizeBytes`.
-- The owned channel is created with `ThrowOperationCanceledOnCancellation`,
-  and `RpcInvoker` additionally maps `Cancelled` + cancelled token to
-  `OperationCanceledException` for externally supplied channels.
+- **Cancellation vs. deadline** (both verified end-to-end): a cancellation by
+  the caller's token surfaces as `OperationCanceledException`; an expired
+  `MentisClientOptions.Timeout` surfaces as `MentisException` with
+  `StatusCode.DeadlineExceeded`. The owned channel therefore must **not** set
+  `GrpcChannelOptions.ThrowOperationCanceledOnCancellation` - that option
+  also turns a deadline into an `OperationCanceledException` (this was a bug
+  until 2026-10-05, found by the end-to-end tests). `RpcInvoker` maps
+  `Cancelled` + cancelled token to `OperationCanceledException` itself, and
+  - for external channels that did set the option - turns an
+  `OperationCanceledException` without a cancelled caller token into
+  `DeadlineExceeded`.
+- gRPC reports a bare `HttpRequestException` as `Internal`; only a real
+  connection failure (socket error) becomes `Unavailable`.
 
 ### One client, one channel
 
@@ -455,7 +465,17 @@ Verified against a running Manager (2026-09-28):
   `Grpc.Core.Testing` dependency). Service clients have internal
   constructors taking the generated client, so tests build them directly.
 - Tests cover mapping, request building (incl. optional-field presence
-  such as `HasUserId`), argument validation and error translation.
+  such as `HasUserId`), argument validation and error translation. Every
+  public method of the three clients has at least one request-building test,
+  and one table-driven test per client proves that `Guid.Empty` is rejected
+  before any server call.
+- `MentisClientEndToEndTests` run the real `MentisClient` over a real
+  `GrpcChannel` with a fake `HttpMessageHandler` (and a real closed/silent
+  local port): bearer header, request path, `Timeout`/deadline, cancellation,
+  rate-limit and validation responses, unreachable server. Use it for
+  anything involving the interceptor, options or channel behavior - mocks of
+  the generated client cannot see those. Build gRPC responses with
+  `GrpcResponse(...)` (length-prefixed message + `grpc-status` trailer).
 - **Integration tests** (`tests/Mentis.AI.Sdk.IntegrationTests`) run against
   a real Manager. They read `MENTIS_ENDPOINT` / `MENTIS_API_KEY` from the
   environment or from the git-ignored `.env` in the repo root, and are
@@ -516,11 +536,10 @@ into the sections above. Keep the order unless the owner says otherwise.
   paging fix (see "Paging").
 - [ ] **4. Package metadata.** `RepositoryUrl`, `PackageProjectUrl`,
   optional icon, `CHANGELOG.md`.
-- [ ] **5. Close test gaps.** Untested so far: `LinkDocumentAsync`,
-  `LinkDocumentsAsync`, `UnlinkDocumentAsync`, `GetLinkedToDocumentAsync`,
-  `GetManyAsync` (both), `RenameAsync` (both), `RetryProcessingAsync`,
-  `DeleteManyAsync`, `GetChunksAsync`, `ConversationsClient.EnumerateAsync`,
-  `UploadAsync(filePath)`, the `Timeout` option end-to-end.
+- [x] **5. Close test gaps** (2026-10-05). 183 unit tests (was 53): all
+  client methods, `UploadAsync(filePath)`, `ConversationsClient.EnumerateAsync`,
+  mapping, options validation and the `Timeout` option end-to-end - which
+  uncovered the deadline bug described under "Transport".
 
 ### Worth doing - decide deliberately
 

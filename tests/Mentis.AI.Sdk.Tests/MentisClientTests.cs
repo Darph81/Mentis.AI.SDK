@@ -162,4 +162,60 @@ public class MentisClientTests
         var method = new Method<string, string>(MethodType.Unary, "svc", "method", marshaller, marshaller);
         return new ClientInterceptorContext<string, string>(method, host: null, options);
     }
+
+    [TestCase(0)]
+    [TestCase(-5)]
+    public void Constructor_WithNonPositiveTimeout_Throws(int seconds)
+    {
+        var options = new MentisClientOptions { ApiKey = $"{TestIds.Tenant1}.secret", Timeout = TimeSpan.FromSeconds(seconds) };
+
+        Should.Throw<ArgumentException>(() => new MentisClient(options));
+    }
+
+    [Test]
+    public void Constructor_WithRelativeEndpoint_Throws()
+    {
+        var options = new MentisClientOptions { Endpoint = new Uri("/relative", UriKind.Relative), ApiKey = $"{TestIds.Tenant1}.secret" };
+
+        Should.Throw<ArgumentException>(() => new MentisClient(options));
+    }
+
+    [Test]
+    public void Constructor_WithEmptyTenantId_Throws()
+    {
+        Should.Throw<ArgumentException>(() => new MentisClient(new MentisClientOptions { TenantId = Guid.Empty, Secret = "secret" }));
+    }
+
+    [Test]
+    public void Constructor_WithoutSecret_Throws()
+    {
+        Should.Throw<ArgumentException>(() => new MentisClient(new MentisClientOptions { TenantId = TestIds.Tenant1, Secret = " " }));
+    }
+
+    [Test]
+    public void Constructor_WithNullOptions_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => new MentisClient((MentisClientOptions)null!));
+    }
+
+    [Test]
+    public async Task DisposeAsync_CanBeCalledTwice()
+    {
+        var client = new MentisClient(new MentisClientOptions { ApiKey = $"{TestIds.Tenant1}.secret" });
+
+        await client.DisposeAsync();
+
+        await Should.NotThrowAsync(async () => await client.DisposeAsync());
+    }
+
+    [Test]
+    public void ErrorMessages_NeverContainTheSecret()
+    {
+        const string secret = "super-secret-value";
+
+        ArgumentException ex = Should.Throw<ArgumentException>(
+            () => new MentisClient(new MentisClientOptions { ApiKey = secret }));
+
+        ex.Message.ShouldNotContain(secret);
+    }
 }
