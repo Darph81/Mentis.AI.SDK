@@ -44,7 +44,8 @@ internal static class ProtoMapper
         Title = conversation.Title,
         CreatedAt = ToDateTimeOffset(conversation.CreatedAt),
         LinkedDocumentIds = [.. conversation.LinkedDocumentIds.Select(ParseId)],
-        // The Manager returns messages in database order, which is not chronological - sort them here.
+        // Managers before 2026-10-04 returned messages in database order; sorting keeps the documented
+        // chronological order regardless of the server version.
         Messages = [.. conversation.Messages.Select(ToModel).OrderBy(m => m.CreatedAt)],
         TenantId = ParseId(conversation.TenantId),
         OwnerUserId = conversation.HasOwnerUserId ? ParseOptionalId(conversation.OwnerUserId) : null,

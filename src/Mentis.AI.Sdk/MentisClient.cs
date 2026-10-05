@@ -26,7 +26,10 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
         ArgumentNullException.ThrowIfNull(options);
         string apiKey = options.GetValidatedApiKey();
 
-        var channelOptions = new GrpcChannelOptions { ThrowOperationCanceledOnCancellation = true };
+        // ThrowOperationCanceledOnCancellation is deliberately off: it would also turn an expired
+        // MentisClientOptions.Timeout into an OperationCanceledException. RpcInvoker maps a cancellation by the
+        // caller's token itself, so a deadline surfaces as MentisException(DeadlineExceeded).
+        var channelOptions = new GrpcChannelOptions();
         if (options.MaxSendMessageSizeBytes is { } maxSend)
         {
             channelOptions.MaxSendMessageSize = maxSend;

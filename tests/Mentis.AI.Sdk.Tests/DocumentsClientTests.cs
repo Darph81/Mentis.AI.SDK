@@ -280,4 +280,366 @@ public class DocumentsClientTests
 
         _grpc.ReceivedCalls().ShouldBeEmpty();
     }
+
+    [Test]
+    public async Task GetManyAsync_SendsIdsAndMapsDocuments()
+    {
+        Proto.GetDocumentsByIdsRequest? sent = null;
+        _grpc.GetDocumentsByIdsAsync(Arg.Do<Proto.GetDocumentsByIdsRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.GetDocumentsByIdsResponse
+            {
+                Documents =
+                {
+                    new Proto.Document { Id = TestIds.Document1.ToString() },
+                    new Proto.Document { Id = TestIds.Document2.ToString() },
+                },
+            }));
+
+        IReadOnlyList<Document> documents = await _client.GetManyAsync([TestIds.Document1, TestIds.Document2]);
+
+        sent!.DocumentIds.ShouldBe([TestIds.Document1.ToString(), TestIds.Document2.ToString()]);
+        documents.Select(d => d.Id).ShouldBe([TestIds.Document1, TestIds.Document2]);
+    }
+
+    [Test]
+    public async Task GetManyAsync_NullIds_Throws()
+    {
+        await Should.ThrowAsync<ArgumentNullException>(() => _client.GetManyAsync(null!));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task RenameAsync_SendsIdAndTitleAndMapsDocument()
+    {
+        Proto.RenameDocumentRequest? sent = null;
+        _grpc.RenameDocumentAsync(Arg.Do<Proto.RenameDocumentRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.RenameDocumentResponse
+            {
+                Document = new Proto.Document { Id = TestIds.Document1.ToString(), Title = "New title" },
+            }));
+
+        Document renamed = await _client.RenameAsync(TestIds.Document1, "New title");
+
+        sent!.DocumentId.ShouldBe(TestIds.Document1.ToString());
+        sent.NewTitle.ShouldBe("New title");
+        renamed.Title.ShouldBe("New title");
+    }
+
+    [TestCase("")]
+    [TestCase("   ")]
+    public async Task RenameAsync_BlankTitle_ThrowsBeforeCallingServer(string title)
+    {
+        await Should.ThrowAsync<ArgumentException>(() => _client.RenameAsync(TestIds.Document1, title));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task DeleteAsync_SendsId()
+    {
+        Proto.DeleteDocumentRequest? sent = null;
+        _grpc.DeleteDocumentAsync(Arg.Do<Proto.DeleteDocumentRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.DeleteDocumentResponse()));
+
+        await _client.DeleteAsync(TestIds.Document1);
+
+        sent!.DocumentId.ShouldBe(TestIds.Document1.ToString());
+    }
+
+    [Test]
+    public async Task DeleteAsync_ServerError_ThrowsMentisException()
+    {
+        _grpc.DeleteDocumentAsync(Arg.Any<Proto.DeleteDocumentRequest>(), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Failure<Proto.DeleteDocumentResponse>(StatusCode.NotFound, "Document.NotFound: gone"));
+
+        MentisException ex = await Should.ThrowAsync<MentisException>(() => _client.DeleteAsync(TestIds.Document1));
+
+        ex.ErrorCode.ShouldBe("Document.NotFound");
+    }
+
+    [Test]
+    public async Task DeleteManyAsync_SendsAllIds()
+    {
+        Proto.DeleteDocumentsRequest? sent = null;
+        _grpc.DeleteDocumentsAsync(Arg.Do<Proto.DeleteDocumentsRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.DeleteDocumentsResponse()));
+
+        await _client.DeleteManyAsync([TestIds.Document1, TestIds.Document2, TestIds.Document3]);
+
+        sent!.DocumentIds.ShouldBe([TestIds.Document1.ToString(), TestIds.Document2.ToString(), TestIds.Document3.ToString()]);
+    }
+
+    [Test]
+    public async Task DeleteManyAsync_WithEmptyGuid_ThrowsBeforeCallingServer()
+    {
+        await Should.ThrowAsync<ArgumentException>(() => _client.DeleteManyAsync([TestIds.Document1, Guid.Empty]));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task RetryProcessingAsync_SendsIdAndMapsDocument()
+    {
+        Proto.RetryDocumentProcessingRequest? sent = null;
+        _grpc.RetryDocumentProcessingAsync(Arg.Do<Proto.RetryDocumentProcessingRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.RetryDocumentProcessingResponse
+            {
+                Document = new Proto.Document { Id = TestIds.Document1.ToString(), Status = Proto.DocumentStatus.Processing },
+            }));
+
+        Document document = await _client.RetryProcessingAsync(TestIds.Document1);
+
+        sent!.DocumentId.ShouldBe(TestIds.Document1.ToString());
+        document.Status.ShouldBe(DocumentStatus.Processing);
+    }
+
+    [Test]
+    public async Task GetChunksAsync_SendsPagingAndMapsChunks()
+    {
+        Proto.GetDocumentChunksRequest? sent = null;
+        _grpc.GetDocumentChunksAsync(Arg.Do<Proto.GetDocumentChunksRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.GetDocumentChunksResponse
+            {
+                Chunks =
+                {
+                    new Proto.DocumentChunk { Id = TestIds.Chunk1.ToString(), SequenceNumber = 0, Content = "first", HasEmbedding = true },
+                    new Proto.DocumentChunk { Id = TestIds.Chunk2.ToString(), SequenceNumber = 1, Content = "second" },
+                },
+                TotalCount = 5,
+                PageNumber = 2,
+                PageSize = 2,
+            }));
+
+        PagedResult<DocumentChunk> page = await _client.GetChunksAsync(TestIds.Document1, pageNumber: 2, pageSize: 2);
+
+        sent!.DocumentId.ShouldBe(TestIds.Document1.ToString());
+        sent.PageNumber.ShouldBe(2);
+        sent.PageSize.ShouldBe(2);
+        page.Items.Select(c => (c.Id, c.SequenceNumber, c.Content, c.HasEmbedding))
+            .ShouldBe([(TestIds.Chunk1, 0, "first", true), (TestIds.Chunk2, 1, "second", false)]);
+        page.TotalCount.ShouldBe(5);
+        page.HasNextPage.ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task GetChunksAsync_WithoutPaging_LeavesItToTheServer()
+    {
+        Proto.GetDocumentChunksRequest? sent = null;
+        _grpc.GetDocumentChunksAsync(Arg.Do<Proto.GetDocumentChunksRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.GetDocumentChunksResponse { PageNumber = 1, PageSize = 50 }));
+
+        await _client.GetChunksAsync(TestIds.Document1);
+
+        sent!.PageNumber.ShouldBe(0);
+        sent.PageSize.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task GetChunksAsync_PageNumberWithoutPageSize_Throws()
+    {
+        await Should.ThrowAsync<ArgumentException>(() => _client.GetChunksAsync(TestIds.Document1, pageNumber: 2));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task WaitUntilProcessedAsync_ReturnsFailedDocumentWithoutThrowing()
+    {
+        _grpc.GetDocumentByIdAsync(Arg.Any<Proto.GetDocumentByIdRequest>(), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.GetDocumentByIdResponse
+            {
+                Document = new Proto.Document { Id = TestIds.Document1.ToString(), Status = Proto.DocumentStatus.Failed, FailureReason = "Unsupported content" },
+            }));
+
+        Document document = await _client.WaitUntilProcessedAsync(TestIds.Document1, TimeSpan.FromMilliseconds(1));
+
+        document.Status.ShouldBe(DocumentStatus.Failed);
+        document.FailureReason.ShouldBe("Unsupported content");
+    }
+
+    [Test]
+    public async Task WaitUntilProcessedAsync_NonPositivePollInterval_Throws()
+    {
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => _client.WaitUntilProcessedAsync(TestIds.Document1, TimeSpan.Zero));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task WaitUntilProcessedAsync_CancelledWhileWaiting_ThrowsOperationCanceled()
+    {
+        _grpc.GetDocumentByIdAsync(Arg.Any<Proto.GetDocumentByIdRequest>(), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.GetDocumentByIdResponse
+            {
+                Document = new Proto.Document { Id = TestIds.Document1.ToString(), Status = Proto.DocumentStatus.Processing },
+            }));
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        Exception? thrown = null;
+        try
+        {
+            await _client.WaitUntilProcessedAsync(TestIds.Document1, TimeSpan.FromSeconds(30), cts.Token);
+        }
+        catch (Exception ex)
+        {
+            thrown = ex;
+        }
+
+        thrown.ShouldBeAssignableTo<OperationCanceledException>();
+    }
+
+    [Test]
+    public async Task SearchAsync_WithoutDocumentIds_SearchesEverything()
+    {
+        Proto.SearchDocumentsRequest? sent = null;
+        _grpc.SearchDocumentsAsync(Arg.Do<Proto.SearchDocumentsRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.SearchDocumentsResponse()));
+
+        IReadOnlyList<DocumentSearchResult> results = await _client.SearchAsync("policy");
+
+        sent!.DocumentIds.ShouldBeEmpty();
+        sent.TopK.ShouldBe(0);
+        results.ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task SearchAsync_BlankQuery_Throws()
+    {
+        await Should.ThrowAsync<ArgumentException>(() => _client.SearchAsync("  "));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [TestCase(0)]
+    [TestCase(-1)]
+    public async Task SearchAsync_NonPositiveTopK_Throws(int topK)
+    {
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => _client.SearchAsync("policy", topK: topK));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task UploadAsync_ExplicitTypeAndTitle_AreSentAsGiven()
+    {
+        Proto.UploadDocumentRequest? sent = null;
+        _grpc.UploadDocumentAsync(Arg.Do<Proto.UploadDocumentRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.UploadDocumentResponse { Document = new Proto.Document { Id = TestIds.Document1.ToString() } }));
+        using var stream = new MemoryStream([1, 2, 3]);
+
+        await _client.UploadAsync(stream, "data.bin", title: "Custom title", type: DocumentType.Pdf);
+
+        sent!.Type.ShouldBe(Proto.DocumentType.Pdf);
+        sent.Title.ShouldBe("Custom title");
+        sent.FileName.ShouldBe("data.bin");
+        sent.SizeInBytes.ShouldBe(3);
+    }
+
+    [TestCase("report.pdf", DocumentType.Pdf)]
+    [TestCase("report.DOCX", DocumentType.Docx)]
+    [TestCase("notes.md", DocumentType.Markdown)]
+    [TestCase("notes.markdown", DocumentType.Markdown)]
+    [TestCase("page.html", DocumentType.Html)]
+    [TestCase("page.htm", DocumentType.Html)]
+    [TestCase("plain.txt", DocumentType.Txt)]
+    public async Task UploadAsync_InfersTypeFromExtension(string fileName, DocumentType expected)
+    {
+        Proto.UploadDocumentRequest? sent = null;
+        _grpc.UploadDocumentAsync(Arg.Do<Proto.UploadDocumentRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.UploadDocumentResponse { Document = new Proto.Document { Id = TestIds.Document1.ToString() } }));
+        using var stream = new MemoryStream([1]);
+
+        await _client.UploadAsync(stream, fileName);
+
+        sent!.Type.ShouldBe((Proto.DocumentType)expected);
+    }
+
+    [Test]
+    public async Task UploadAsync_BlankFileName_Throws()
+    {
+        using var stream = new MemoryStream([1]);
+
+        await Should.ThrowAsync<ArgumentException>(() => _client.UploadAsync(stream, " "));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task UploadAsync_FromFile_ReadsTheFileAndInfersTitleAndType()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"mentis-sdk-test-{Guid.NewGuid():N}.md");
+        await File.WriteAllTextAsync(path, "# From disk");
+        try
+        {
+            Proto.UploadDocumentRequest? sent = null;
+            _grpc.UploadDocumentAsync(Arg.Do<Proto.UploadDocumentRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+                .Returns(GrpcTestCalls.Success(new Proto.UploadDocumentResponse { Document = new Proto.Document { Id = TestIds.Document1.ToString() } }));
+
+            await _client.UploadAsync(path);
+
+            sent!.FileName.ShouldBe(Path.GetFileName(path));
+            sent.Title.ShouldBe(Path.GetFileNameWithoutExtension(path));
+            sent.Type.ShouldBe(Proto.DocumentType.Markdown);
+            sent.Content.ToStringUtf8().ShouldBe("# From disk");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Test]
+    public async Task UploadAsync_FromMissingFile_ThrowsFileNotFound()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"mentis-sdk-missing-{Guid.NewGuid():N}.txt");
+
+        await Should.ThrowAsync<FileNotFoundException>(() => _client.UploadAsync(path));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task UploadAsync_FromFileWithUnknownExtension_ThrowsAndLeavesNoFileOpen()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"mentis-sdk-test-{Guid.NewGuid():N}.bin");
+        await File.WriteAllBytesAsync(path, [1, 2, 3]);
+        try
+        {
+            await Should.ThrowAsync<ArgumentException>(() => _client.UploadAsync(path));
+
+            // The file handle must have been released: deleting an open file would fail on Windows,
+            // and re-opening it exclusively proves it here as well.
+            await using var exclusive = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            _grpc.ReceivedCalls().ShouldBeEmpty();
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static IEnumerable<TestCaseData> EmptyIdCalls()
+    {
+        yield return Case("GetAsync", c => c.GetAsync(Guid.Empty));
+        yield return Case("RenameAsync", c => c.RenameAsync(Guid.Empty, "title"));
+        yield return Case("DeleteAsync", c => c.DeleteAsync(Guid.Empty));
+        yield return Case("GetContentAsync", c => c.GetContentAsync(Guid.Empty));
+        yield return Case("GetChunksAsync", c => c.GetChunksAsync(Guid.Empty));
+        yield return Case("RetryProcessingAsync", c => c.RetryProcessingAsync(Guid.Empty));
+        yield return Case("WaitUntilProcessedAsync", c => c.WaitUntilProcessedAsync(Guid.Empty));
+        yield return Case("GetManyAsync", c => c.GetManyAsync([Guid.Empty]));
+        yield return Case("DeleteManyAsync", c => c.DeleteManyAsync([Guid.Empty]));
+        yield return Case("SearchAsync", c => c.SearchAsync("query", [Guid.Empty]));
+
+        static TestCaseData Case(string name, Func<IDocumentsClient, Task> call) => new TestCaseData(call).SetName(name);
+    }
+
+    [TestCaseSource(nameof(EmptyIdCalls))]
+    public async Task EveryMethod_RejectsGuidEmpty_BeforeCallingTheServer(Func<IDocumentsClient, Task> call)
+    {
+        await Should.ThrowAsync<ArgumentException>(() => call(_client));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
 }
