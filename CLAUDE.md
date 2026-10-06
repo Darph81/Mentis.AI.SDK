@@ -25,11 +25,25 @@ commit credentials, `.env`, tenant ids with secrets or Manager internals. The
 `.env` with the test tenants' keys is git-ignored; history was scanned for
 secrets before going public (none found).
 
-- **`main` is protected** by the GitHub ruleset `Checkin_to_main`: changes
-  only through a pull request with **at least one approving review**; no
-  force-push, no deletion. The owner (repository role Admin) may bypass the
-  review requirement, but only on a pull request - no direct pushes to
-  `main`. Stale approvals are dismissed when new commits are pushed.
+- **`main` is protected** by two GitHub rulesets (Settings → Rules):
+  - `Checkin_to_main`: changes only through a pull request with **at least
+    one approving review**; no force-push, no deletion. The owner
+    (repository role Admin) may bypass the review requirement, but only on a
+    pull request - no direct pushes to `main`. Stale approvals are
+    dismissed when new commits are pushed.
+  - `CI_must_pass`: the required status check **`build-test-pack`** (the job
+    of `.github/workflows/ci.yml`) must be green - **with no bypass**, so
+    nobody, the owner included, can merge a red PR. It is a separate ruleset
+    on purpose: a bypass applies to every rule of its ruleset, and only the
+    review requirement is meant to be bypassable. "Require branches to be up
+    to date" is off (single maintainer, avoids needless rebases).
+  - **Renaming or splitting the CI job changes the required check name** -
+    update `CI_must_pass` in the same change, otherwise PRs wait forever for a
+    check that no longer exists. The integration tests ignore themselves in CI
+    (no Manager there), so only the unit tests gate a merge; run the
+    integration tests locally before merging anything that touches client
+    behavior. A job that never gets a runner (seen once, 2026-10-05) is
+    fixed with "Re-run jobs".
 - One branch and one PR per change (see the roadmap), merged with a merge
   commit. Branch names: `feat/...`, `fix/...`, `test/...`, `docs/...`,
   `chore/...`.
