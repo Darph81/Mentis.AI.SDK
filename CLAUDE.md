@@ -17,6 +17,26 @@ carries the old name; the product, namespaces and proto package were renamed
 `CLAUDE.md` and `docs/ARCHITECTURE.md` when you need server-side behavior
 details. **Never modify the Manager from this repo.**
 
+## Repository and contribution rules
+
+The repository is **public** (since 2026-10-06; the Manager's repository
+stays private). Everything committed is world-readable and permanent - never
+commit credentials, `.env`, tenant ids with secrets or Manager internals. The
+`.env` with the test tenants' keys is git-ignored; history was scanned for
+secrets before going public (none found).
+
+- **`main` is protected** by the GitHub ruleset `Checkin_to_main`: changes
+  only through a pull request with **at least one approving review**; no
+  force-push, no deletion. The owner (repository role Admin) may bypass the
+  review requirement, but only on a pull request - no direct pushes to
+  `main`. Stale approvals are dismissed when new commits are pushed.
+- One branch and one PR per change (see the roadmap), merged with a merge
+  commit. Branch names: `feat/...`, `fix/...`, `test/...`, `docs/...`,
+  `chore/...`.
+- The package is published to nuget.org (id `Mentis.AI.Sdk`, prefix
+  `Mentis.AI.*` reserved on request) - see the roadmap. Published versions
+  are permanent; stay on `0.x` while the API may still change.
+
 ## Hard requirements (set by the project owner)
 
 1. **Target framework: .NET 10** (`net10.0`) only.
@@ -129,9 +149,9 @@ scripts/protos.sh sync  --ref origin/main   # overwrite the copies
 - The only allowed difference is the `csharp_namespace` line; `admin.proto`
   is ignored. A new proto file in the Manager is reported as `MISSING`, a
   copy without counterpart as `ORPHAN`.
-- The check is **local only**: both repos are private, so CI has no access
-  to the Manager. Run it before every release and whenever the Manager's
-  protos changed.
+- The check is **local only**: the SDK repository is public but the Manager
+  repository is private, so CI has no access to the Manager. Run it before
+  every release and whenever the Manager's protos changed.
 
 When the check reports a difference:
 
