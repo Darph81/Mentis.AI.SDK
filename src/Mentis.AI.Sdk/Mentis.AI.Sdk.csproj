@@ -11,6 +11,16 @@
     <PackageTags>mentis;ai;llm;rag;grpc;sdk</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/Darph81/Mentis.AI.SDK</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/Darph81/Mentis.AI.SDK/blob/main/CHANGELOG.md</PackageReleaseNotes>
+    <Copyright>Copyright (c) 2026 Darph81</Copyright>
+
+    <!-- Source link: lets debuggers step into the SDK's source on GitHub (SourceLink ships with the .NET SDK). -->
+    <RepositoryUrl>https://github.com/Darph81/Mentis.AI.SDK.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>

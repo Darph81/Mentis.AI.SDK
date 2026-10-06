@@ -86,7 +86,9 @@ Directory.Build.props            shared build settings (net10.0, nullable, analy
 Directory.Packages.props         central package versions
 global.json
 .editorconfig                    code style, copied from the Manager
-.github/workflows/ci.yml         CI: build, unit tests, pack
+.github/workflows/ci.yml         CI: build, unit tests, pack (required check on PRs)
+.github/workflows/release.yml    release: tag v* -> test, pack, publish to nuget.org
+CHANGELOG.md                     Keep a Changelog; one section per released version
 scripts/protos.sh                check/sync the proto copies against the Manager
 src/Mentis.AI.Sdk/
   Protos/                        copies of the Manager's non-admin .proto files
@@ -541,6 +543,44 @@ dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory=Llm"
 set -a && . ./.env && set +a && dotnet run --project samples/Mentis.AI.Sdk.Sample
 ```
 
+## Releasing
+
+The version lives in **one place**: `<Version>` in
+`src/Mentis.AI.Sdk/Mentis.AI.Sdk.csproj`. Published NuGet versions are
+permanent (they can only be unlisted), so a release is deliberate:
+
+1. In a PR: bump `<Version>`, move the `## [Unreleased]` entries of
+   `CHANGELOG.md` into a new `## [x.y.z] - date` section (and add the compare
+   links at the bottom). Merge it (CI must be green).
+2. Run the integration tests locally against a Manager (they never run in CI).
+   Run `scripts/protos.sh check --ref origin/main` (Manager protos unchanged?).
+3. Tag the merge commit on `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. `release.yml` verifies tag == `<Version>`, a CHANGELOG section exists and the
+   commit is on `main`; builds, tests and packs once; then the `publish` job
+   **waits for approval** in the `nuget` environment, pushes that exact
+   package (+ symbols) to nuget.org and creates the GitHub release with the
+   CHANGELOG section as notes. `vX.Y.Z-beta.1`-style tags are marked prerelease.
+5. A failed run can be re-run; `--skip-duplicate` makes the push idempotent.
+   *Actions -> Release -> Run workflow* on a branch builds, tests and packs
+   without publishing - use it to try changes to the workflow itself.
+
+**One-time setup (owner, not yet done as of 2026-10-06):**
+
+- GitHub: Settings -> Environments -> New environment `nuget` -> *Required
+  reviewers*: the owner. **Do this before the first tag** - a missing
+  environment is created implicitly *without* protection.
+- nuget.org: Account -> *Trusted Publishing* -> add a policy for owner
+  `darph81`, repository `Darph81/Mentis.AI.SDK`, workflow file `release.yml`,
+  environment `nuget`. No API key is stored anywhere. If nuget.org does not
+  allow a trusted-publishing policy for a package id that does not exist yet,
+  create a package-scoped API key for the first push instead, store it as the
+  secret `NUGET_API_KEY` and replace the login step by `--api-key
+  ${{ secrets.NUGET_API_KEY }}` for that release only.
+- Optional: a tag ruleset for `v*` (only admins may create tags) as a second
+  line of defence next to the environment approval.
+- The `user:` in the NuGet login step is the nuget.org **profile name**
+  (`darph81`) - correct it in `release.yml` if it differs.
+
 ## Roadmap - open work
 
 Work through these one step at a time, one branch/PR each. When a step is
@@ -568,8 +608,11 @@ into the sections above. Keep the order unless the owner says otherwise.
 - [x] **Manager Phase 72 + list filters synced (2026-10-02).** `QueryScope`
   (`ChatMessage.QueryScope`, list `scope` filter), `textContains`, and the
   paging fix (see "Paging").
-- [ ] **4. Package metadata.** `RepositoryUrl`, `PackageProjectUrl`,
-  optional icon, `CHANGELOG.md`.
+- [x] **4. Package metadata + release workflow** (2026-10-06).
+  `RepositoryUrl`/`PackageProjectUrl`, Source Link + `.snupkg`, `CHANGELOG.md`,
+  tag-driven `release.yml` (see "Releasing"). No package icon (optional, can
+  be added any time). **First publish still pending** - see the one-time setup
+  checklist under "Releasing".
 - [x] **5. Close test gaps** (2026-10-05). 183 unit tests (was 53): all
   client methods, `UploadAsync(filePath)`, `ConversationsClient.EnumerateAsync`,
   mapping, options validation and the `Timeout` option end-to-end - which

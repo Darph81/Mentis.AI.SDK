@@ -11,6 +11,8 @@ single exception type for every server error. Every id (documents,
 conversations, messages, tenants, end users) is a `Guid`.
 
 > **Status:** early development (0.x) - the API may still change.
+>
+> This is a client library: it needs a running Mentis.AI Manager to talk to.
 
 ## Features
 
@@ -269,7 +271,7 @@ connections and `https://` when a TLS reverse proxy is in front of it.
 ## Building from source
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Darph81/Mentis.AI.SDK.git
 cd Mentis.AI.SDK
 dotnet build
 dotnet test tests/Mentis.AI.Sdk.Tests
@@ -305,4 +307,4 @@ The tests delete everything they create. Without the variables they are skipped.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Darph81/Mentis.AI.SDK/blob/main/LICENSE)

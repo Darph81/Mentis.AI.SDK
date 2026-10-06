@@ -1,0 +1,139 @@
+name: Release
+
+# Publishes Mentis.AI.Sdk to nuget.org when a version tag (v0.1.0, v0.2.0-beta.1, ...) is pushed.
+#
+# Safeguards, because a published NuGet version can never be changed or deleted:
+#   1. The tag must match <Version> in the project file and have a CHANGELOG.md section.
+#   2. The tagged commit must be on main (so it went through the PR rules and CI).
+#   3. The package is built and tested once; exactly that package is published.
+#   4. The publish job waits for approval in the "nuget" environment.
+#
+# Run manually (Actions -> Release -> Run workflow) to build, test and pack without publishing.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Read and check the version
+        id: version
+        run: |
+          version="$(dotnet msbuild src/Mentis.AI.Sdk/Mentis.AI.Sdk.csproj -getProperty:Version -nologo)"
+          echo "Project version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "Not a tag build - skipping tag checks, nothing will be published."
+            exit 0
+          fi
+
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match <Version> $version in Mentis.AI.Sdk.csproj."
+            exit 1
+          fi
+
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section '## [$version]'."
+            exit 1
+          fi
+
+          if ! git branch -r --contains "$GITHUB_SHA" | grep -q 'origin/main$'; then
+            echo "::error::Tagged commit $GITHUB_SHA is not on main. Merge it through a pull request first."
+            exit 1
+          fi
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      # Integration tests need a running Manager and ignore themselves here; only unit tests run.
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+      - name: Pack
+        run: dotnet pack src/Mentis.AI.Sdk --no-build --configuration Release --output ./artifacts
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    # Requires approval: Settings -> Environments -> nuget -> Required reviewers.
+    environment: nuget
+    permissions:
+      contents: write   # create the GitHub release
+      id-token: write   # NuGet trusted publishing (OIDC)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download package
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: artifacts
+
+      # Trusted publishing: no API key is stored. The policy on nuget.org must name this
+      # repository and the workflow file "release.yml". The user is the nuget.org profile name.
+      - name: NuGet login (trusted publishing)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: darph81
+
+      # The .snupkg next to the .nupkg is pushed automatically.
+      - name: Push to nuget.org
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --source https://api.nuget.org/v3/index.json
+          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
+          --skip-duplicate
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '$1 == "##" { if (found) exit; found = ($2 == "[" v "]"); next } found' CHANGELOG.md > release-notes.md
+          flags=""
+          case "$VERSION" in *-*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg artifacts/*.snupkg \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            $flags
