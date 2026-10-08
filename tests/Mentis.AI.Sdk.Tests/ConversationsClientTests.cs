@@ -104,6 +104,76 @@ public class ConversationsClientTests
 
         sent!.HasModel.ShouldBeFalse();
         sent.HasOdataSecret.ShouldBeFalse();
+        sent.McpServer.ShouldBeNull();
+    }
+
+    [Test]
+    public async Task SendMessageAsync_WithMcpServer_SendsUrlHeaderAndToolNames()
+    {
+        Proto.SendMessageRequest? sent = null;
+        _grpc.SendMessageAsync(Arg.Do<Proto.SendMessageRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.SendMessageResponse { Message = new Proto.ChatMessage { Id = TestIds.Message1.ToString() } }));
+
+        await _client.SendMessageAsync(
+            TestIds.Conversation1,
+            "Create a ticket",
+            mcpServer: new McpServer
+            {
+                Url = new Uri("https://mcp.example.com/mcp"),
+                AuthHeader = "Bearer abc123",
+                AllowedToolNames = ["create_ticket"],
+            });
+
+        sent!.McpServer.Url.ShouldBe("https://mcp.example.com/mcp");
+        sent.McpServer.HasAuthHeader.ShouldBeTrue();
+        sent.McpServer.AuthHeader.ShouldBe("Bearer abc123");
+        sent.McpServer.AllowedToolNames.ShouldBe(["create_ticket"]);
+    }
+
+    [Test]
+    public async Task SendMessageAsync_McpServerWithoutAuthHeader_LeavesItUnset()
+    {
+        Proto.SendMessageRequest? sent = null;
+        _grpc.SendMessageAsync(Arg.Do<Proto.SendMessageRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.SendMessageResponse { Message = new Proto.ChatMessage { Id = TestIds.Message1.ToString() } }));
+
+        await _client.SendMessageAsync(
+            TestIds.Conversation1,
+            "Hi",
+            mcpServer: new McpServer { Url = new Uri("https://mcp.example.com/"), AllowedToolNames = ["t"] });
+
+        sent!.McpServer.HasAuthHeader.ShouldBeFalse();
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    public async Task SendMessageAsync_InvalidMcpServer_ThrowsBeforeCallingServer(int kind)
+    {
+        var server = kind == 0
+            ? new McpServer { Url = new Uri("https://mcp.example.com/"), AllowedToolNames = [] }
+            : new McpServer { Url = new Uri("/relative", UriKind.Relative), AllowedToolNames = ["t"] };
+
+        await Should.ThrowAsync<ArgumentException>(() => _client.SendMessageAsync(TestIds.Conversation1, "Hi", mcpServer: server));
+
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public void McpServer_ToString_DoesNotRevealUrlPathOrAuthHeader()
+    {
+        var server = new McpServer
+        {
+            Url = new Uri("https://mcp.example.com/secret-path?token=xyz"),
+            AuthHeader = "Bearer abc123",
+            AllowedToolNames = ["t"],
+        };
+
+        string text = server.ToString();
+
+        text.ShouldContain("mcp.example.com");
+        text.ShouldNotContain("secret-path");
+        text.ShouldNotContain("xyz");
+        text.ShouldNotContain("abc123");
     }
 
     [Test]

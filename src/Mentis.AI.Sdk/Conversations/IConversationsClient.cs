@@ -104,6 +104,12 @@ public interface IConversationsClient
     /// Credential for the tenant's configured OData data source, used for this call only. Ignored when the
     /// tenant has no OData source. Never stored or logged.
     /// </param>
+    /// <param name="mcpServer">
+    /// Optional remote MCP server whose tools the model may call while answering this one message. See
+    /// <see cref="McpServer"/>. Not stored by the Manager; the call fails with
+    /// status <c>PermissionDenied</c> (<c>Mcp.ServerNotAllowed</c>) when the server's
+    /// host is not on the deployment's allow-list.
+    /// </param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The assistant's answer. <see cref="ChatMessage.QueryScope"/> tells which documents were searched (own,
@@ -116,6 +122,7 @@ public interface IConversationsClient
         string content,
         string? model = null,
         string? odataSecret = null,
+        McpServer? mcpServer = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

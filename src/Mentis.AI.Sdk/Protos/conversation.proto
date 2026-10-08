@@ -175,6 +175,20 @@ message ExportConversationResponse {
   string markdown = 1;
 }
 
+// Phase 73: opt-in, per-call connection to a remote MCP server (Streamable
+// HTTP). Ephemeral - never stored or logged. See SendMessageRequest.mcp_server.
+message McpServer {
+  // Absolute https URL. Its host must be on the deployment's admin-configured
+  // allow-list (Mcp:AllowedServerHosts), otherwise the call fails with
+  // PERMISSION_DENIED (Mcp.ServerNotAllowed) before any connection is made.
+  string url = 1;
+  // Complete Authorization header value, e.g. "Bearer abc123". Optional.
+  optional string auth_header = 2;
+  // Only tools whose name is in BOTH this list and the server's own tools/list
+  // can be called by the model. Must not be empty.
+  repeated string allowed_tool_names = 3;
+}
+
 message SendMessageRequest {
   string conversation_id = 1;
   string content = 2;
@@ -189,6 +203,8 @@ message SendMessageRequest {
   // stored or logged anywhere. Ignored entirely when the tenant has no
   // OData endpoint configured.
   optional string odata_secret = 5;
+  // Phase 73. Unset means exactly the behavior before this field existed.
+  optional McpServer mcp_server = 6;
 }
 
 message SendMessageResponse {
@@ -214,6 +230,15 @@ message ListConversationsRequest {
   // Optional. Empty/unset means no filter. Case-insensitive substring match.
   string title_contains = 3;
   optional string user_id = 4;
+  // Narrow the already-visible set (admin: every conversation, a tenant:
+  // its own that it may see) - they never widen it. tenant_id keeps only
+  // that tenant's conversations; a caller with no visibility into it simply
+  // gets an empty result, not an error. owner_user_id keeps only
+  // conversations owned by that user - tenant-global conversations (no
+  // owner) never match. Both must be valid GUIDs and can be combined with
+  // each other and with title_contains.
+  optional string tenant_id = 5;
+  optional string owner_user_id = 6;
 }
 
 message ListConversationsResponse {

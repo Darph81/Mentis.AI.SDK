@@ -196,6 +196,29 @@ string markdown = await alice.ExportMarkdownAsync(chat.Id);
 the Manager deployment) and an `odataSecret` for tenants with a configured
 OData data source.
 
+#### MCP tools
+
+Pass a remote [MCP](https://modelcontextprotocol.io) server (Streamable HTTP) to
+let the model call its tools while answering **one** message. The server
+configuration is ephemeral - the Manager neither stores nor logs it:
+
+```csharp
+var reply = await alice.SendMessageAsync(
+    chat.Id,
+    "Open a ticket for the broken printer.",
+    mcpServer: new McpServer
+    {
+        Url = new Uri("https://mcp.example.com/mcp"),
+        AuthHeader = "Bearer <token>",          // optional, full Authorization value
+        AllowedToolNames = ["create_ticket"],   // only these tools can be called
+    });
+```
+
+The server's host must be on the Manager's admin-configured allow-list, otherwise
+the call fails with `MentisException` (`PermissionDenied`, `Mcp.ServerNotAllowed`).
+Other error codes: `Mcp.InsecureServerUrl`, `Mcp.InvalidServerUrl`,
+`Mcp.NoAllowedToolsAvailable`, `Mcp.Timeout`, `Mcp.ToolCallLimitReached`.
+
 Answers draw on your own documents and the global documents shared with every
 tenant - linking documents to a conversation does not limit that. The Manager
 classifies each question and may search only your own or only the global

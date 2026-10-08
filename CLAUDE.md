@@ -353,6 +353,24 @@ for one concept instead of two look-alikes.
 - `textContains` matches title **or** file name (search boxes);
   `titleContains` only the title. All filters combine.
 
+### MCP (Manager Phase 73)
+
+`SendMessageAsync(..., McpServer? mcpServer)` maps `SendMessageRequest.mcp_server`.
+`McpServer` (`Url` as `Uri`, optional `AuthHeader`, required non-empty
+`AllowedToolNames`) is ephemeral on the server and in the SDK: `ToString()` is
+redacted (URL paths/queries may carry tokens), nothing is logged. Validation of
+shape happens in `McpServer.ToProto()` (fail fast); host allow-list, https
+requirement, admin ban (admin is out of scope anyway) and round limits are
+server-side - the SDK adds no MCP logic of its own. Error codes: `Mcp.ServerNotAllowed`
+(`PermissionDenied`), `Mcp.InsecureServerUrl`/`Mcp.InvalidServerUrl`
+(`InvalidArgument`), `Mcp.NoAllowedToolsAvailable`, `Mcp.Timeout`,
+`Mcp.ToolCallLimitReached`, `Mcp.AuditFailed`. Streamable HTTP only.
+
+The same proto sync added `ListConversationsRequest.tenant_id` /
+`owner_user_id` filters. **Deliberately not exposed:** `tenant_id` is only
+meaningful for admin, and `owner_user_id` duplicates `ForUser` (user-owned
+conversations are invisible to the tenant-global client anyway).
+
 ### Billing
 
 Tenant tokens always see only their own usage; `tenant_id` in the request is

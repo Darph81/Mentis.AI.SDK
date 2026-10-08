@@ -8,6 +8,16 @@ While the major version is `0`, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- MCP support: `Conversations.SendMessageAsync(..., McpServer? mcpServer)` lets the
+  model call the tools of a remote MCP server for one message (Manager Phase 73).
+
+### Changed
+
+- **Breaking:** `SendMessageAsync` has a new `mcpServer` parameter before
+  `cancellationToken`; callers passing the token positionally must use the name.
+
 ## [0.1.0] - 2026-10-06
 
 First public release.
