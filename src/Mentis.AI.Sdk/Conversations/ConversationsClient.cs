@@ -253,6 +253,7 @@ internal sealed class ConversationsClient : IConversationsClient
         string content,
         string? model = null,
         string? odataSecret = null,
+        McpServer? mcpServer = null,
         CancellationToken cancellationToken = default)
     {
         Ids.ThrowIfEmpty(conversationId);
@@ -267,6 +268,11 @@ internal sealed class ConversationsClient : IConversationsClient
         if (!string.IsNullOrEmpty(odataSecret))
         {
             request.OdataSecret = odataSecret;
+        }
+
+        if (mcpServer is not null)
+        {
+            request.McpServer = mcpServer.ToProto();
         }
 
         if (UserId is not null)
