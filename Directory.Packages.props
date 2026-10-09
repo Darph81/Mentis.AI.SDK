@@ -22,7 +22,7 @@
 
   <ItemGroup Label="Dependency injection / options (MIT) - only for AddMentisClient()">
     <!-- Deliberately the lowest 10.0 version: this is the minimum every consumer is forced to, so keep it low
-         as long as `dotnet list package --vulnerable --include-transitive` is clean. -->
+         as long as "dotnet list package" with the vulnerable and transitive options is clean. -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
   </ItemGroup>
