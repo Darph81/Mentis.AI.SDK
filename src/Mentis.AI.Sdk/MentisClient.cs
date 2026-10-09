@@ -22,30 +22,8 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
     /// <summary>Creates a client with its own connection to the Manager.</summary>
     /// <param name="options">Endpoint and tenant credentials.</param>
     public MentisClient(MentisClientOptions options)
+        : this(options, externalChannel: null)
     {
-        ArgumentNullException.ThrowIfNull(options);
-        string apiKey = options.GetValidatedApiKey();
-
-        // ThrowOperationCanceledOnCancellation is deliberately off: it would also turn an expired
-        // MentisClientOptions.Timeout into an OperationCanceledException. RpcInvoker maps a cancellation by the
-        // caller's token itself, so a deadline surfaces as MentisException(DeadlineExceeded).
-        var channelOptions = new GrpcChannelOptions();
-        if (options.MaxSendMessageSizeBytes is { } maxSend)
-        {
-            channelOptions.MaxSendMessageSize = maxSend;
-        }
-
-        if (options.MaxReceiveMessageSizeBytes is { } maxReceive)
-        {
-            channelOptions.MaxReceiveMessageSize = maxReceive;
-        }
-
-        _ownedChannel = GrpcChannel.ForAddress(options.Endpoint, channelOptions);
-        CallInvoker invoker = _ownedChannel.Intercept(new MentisCallInterceptor(apiKey, options.Timeout));
-
-        Documents = new DocumentsClient(new Proto.DocumentService.DocumentServiceClient(invoker), MentisClientOptions.TenantIdOf(apiKey));
-        Conversations = new ConversationsClient(new Proto.ConversationService.ConversationServiceClient(invoker));
-        Billing = new BillingClient(new Proto.BillingService.BillingServiceClient(invoker));
     }
 
     /// <summary>
@@ -56,11 +34,16 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
     /// <see cref="MentisClientOptions.Endpoint"/> and the size options are ignored.</param>
     /// <param name="options">Tenant credentials and default timeout.</param>
     public MentisClient(GrpcChannel channel, MentisClientOptions options)
+        : this(options, channel ?? throw new ArgumentNullException(nameof(channel)))
     {
-        ArgumentNullException.ThrowIfNull(channel);
+    }
+
+    private MentisClient(MentisClientOptions options, GrpcChannel? externalChannel)
+    {
         ArgumentNullException.ThrowIfNull(options);
         string apiKey = options.GetValidatedApiKey();
 
+        GrpcChannel channel = externalChannel ?? (_ownedChannel = CreateChannel(options));
         CallInvoker invoker = channel.Intercept(new MentisCallInterceptor(apiKey, options.Timeout));
 
         Documents = new DocumentsClient(new Proto.DocumentService.DocumentServiceClient(invoker), MentisClientOptions.TenantIdOf(apiKey));
@@ -85,5 +68,24 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
     {
         Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    private static GrpcChannel CreateChannel(MentisClientOptions options)
+    {
+        // ThrowOperationCanceledOnCancellation is deliberately off: it would also turn an expired
+        // MentisClientOptions.Timeout into an OperationCanceledException. RpcInvoker maps a cancellation by the
+        // caller's token itself, so a deadline surfaces as MentisException(DeadlineExceeded).
+        var channelOptions = new GrpcChannelOptions();
+        if (options.MaxSendMessageSizeBytes is { } maxSend)
+        {
+            channelOptions.MaxSendMessageSize = maxSend;
+        }
+
+        if (options.MaxReceiveMessageSizeBytes is { } maxReceive)
+        {
+            channelOptions.MaxReceiveMessageSize = maxReceive;
+        }
+
+        return GrpcChannel.ForAddress(options.Endpoint, channelOptions);
     }
 }

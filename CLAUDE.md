@@ -353,7 +353,7 @@ for one concept instead of two look-alikes.
 - `textContains` matches title **or** file name (search boxes);
   `titleContains` only the title. All filters combine.
 
-### MCP (Manager Phase 73)
+### MCP (Manager Phases 73/74)
 
 `SendMessageAsync(..., McpServer? mcpServer)` maps `SendMessageRequest.mcp_server`.
 `McpServer` (`Url` as `Uri`, optional `AuthHeader`, required non-empty
@@ -363,8 +363,16 @@ shape happens in `McpServer.ToProto()` (fail fast); host allow-list, https
 requirement, admin ban (admin is out of scope anyway) and round limits are
 server-side - the SDK adds no MCP logic of its own. Error codes: `Mcp.ServerNotAllowed`
 (`PermissionDenied`), `Mcp.InsecureServerUrl`/`Mcp.InvalidServerUrl`
-(`InvalidArgument`), `Mcp.NoAllowedToolsAvailable`, `Mcp.Timeout`,
-`Mcp.ToolCallLimitReached`, `Mcp.AuditFailed`. Streamable HTTP only.
+(`InvalidArgument`), `Mcp.ConnectionFailed`, `Mcp.NoAllowedToolsAvailable`,
+`Mcp.Timeout`, `Mcp.ToolCallLimitReached`, `Mcp.AuditFailed`. Streamable HTTP only.
+
+Since Manager Phase 74 the host allow-list is **per tenant**, stored in the
+Manager's database and maintained by the admin (`SetTenantMcpConfiguration`,
+an admin RPC - not part of this SDK). An empty list means MCP is off for the
+tenant, which is the default: `Mcp.ServerNotAllowed` does not distinguish "MCP
+off" from "host not listed". Docs must say "the tenant's allow-list", never
+"the deployment's". The `McpTests` integration test only covers the rejection
+path; a success path needs an allow-listed MCP server.
 
 The same proto sync added `ListConversationsRequest.tenant_id` /
 `owner_user_id` filters. **Deliberately not exposed:** `tenant_id` is only
@@ -582,7 +590,8 @@ permanent (they can only be unlisted), so a release is deliberate:
    *Actions -> Release -> Run workflow* on a branch builds, tests and packs
    without publishing - use it to try changes to the workflow itself.
 
-**One-time setup (owner, not yet done as of 2026-10-06):**
+**One-time setup (owner, still not done as of 2026-10-09 - the GitHub API lists
+no environments and nuget.org has no `Mentis.AI.Sdk` yet):**
 
 - GitHub: Settings -> Environments -> New environment `nuget` -> *Required
   reviewers*: the owner. **Do this before the first tag** - a missing
@@ -630,7 +639,10 @@ into the sections above. Keep the order unless the owner says otherwise.
   `RepositoryUrl`/`PackageProjectUrl`, Source Link + `.snupkg`, `CHANGELOG.md`,
   tag-driven `release.yml` (see "Releasing"). No package icon (optional, can
   be added any time). **First publish still pending** - see the one-time setup
-  checklist under "Releasing".
+  checklist under "Releasing". No version has been tagged yet, so everything
+  is under `## [Unreleased]` in `CHANGELOG.md` and becomes `0.1.0` in the
+  release PR (a premature `[0.1.0] - 2026-10-06` section was folded back on
+  2026-10-09).
 - [x] **5. Close test gaps** (2026-10-05). 183 unit tests (was 53): all
   client methods, `UploadAsync(filePath)`, `ConversationsClient.EnumerateAsync`,
   mapping, options validation and the `Timeout` option end-to-end - which

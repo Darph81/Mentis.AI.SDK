@@ -33,7 +33,7 @@ public sealed class MentisClientOptions
     /// <summary>
     /// Optional client-side limit for request size in bytes. <see langword="null"/> means unlimited.
     /// Independently, the Manager rejects requests above its <c>GrpcHost:MaxReceiveMessageSizeBytes</c>
-    /// (4 MB by default), which limits upload size.
+    /// (32 MB in its default configuration), which limits upload size.
     /// </summary>
     public int? MaxSendMessageSizeBytes { get; set; }
 

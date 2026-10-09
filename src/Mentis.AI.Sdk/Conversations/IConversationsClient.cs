@@ -106,9 +106,8 @@ public interface IConversationsClient
     /// </param>
     /// <param name="mcpServer">
     /// Optional remote MCP server whose tools the model may call while answering this one message. See
-    /// <see cref="McpServer"/>. Not stored by the Manager; the call fails with
-    /// status <c>PermissionDenied</c> (<c>Mcp.ServerNotAllowed</c>) when the server's
-    /// host is not on the deployment's allow-list.
+    /// <see cref="McpServer"/>. Not stored by the Manager; the call fails with status <c>PermissionDenied</c>
+    /// (<c>Mcp.ServerNotAllowed</c>) when the host is not on the tenant's allow-list.
     /// </param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
