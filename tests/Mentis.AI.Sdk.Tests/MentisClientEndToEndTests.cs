@@ -100,7 +100,7 @@ public class MentisClientEndToEndTests
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => client.Billing.GetUsageAsync());
 
-        ex.StatusCode.ShouldBe(StatusCode.DeadlineExceeded);
+        ex.StatusCode.ShouldBe(MentisStatusCode.DeadlineExceeded);
     }
 
     [TestCase(false)]
@@ -148,7 +148,7 @@ public class MentisClientEndToEndTests
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => client.Billing.GetUsageAsync());
 
-        ex.StatusCode.ShouldBe(StatusCode.ResourceExhausted);
+        ex.StatusCode.ShouldBe(MentisStatusCode.ResourceExhausted);
         ex.ErrorCode.ShouldBe("RateLimit.Exceeded");
         ex.Message.ShouldBe("Too many requests, retry in 60 s.");
     }
@@ -169,7 +169,7 @@ public class MentisClientEndToEndTests
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => client.Documents.RenameAsync(TestIds.Document1, "x"));
 
-        ex.StatusCode.ShouldBe(StatusCode.InvalidArgument);
+        ex.StatusCode.ShouldBe(MentisStatusCode.InvalidArgument);
         ex.ErrorCode.ShouldBe("Validation.Failed");
         ex.ValidationErrors["newtitle"].ShouldBe(["The length of 'New Title' must be 200 characters or fewer."]);
     }
@@ -183,7 +183,7 @@ public class MentisClientEndToEndTests
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => client.Billing.GetUsageAsync(cancellationToken: cts.Token));
 
-        ex.StatusCode.ShouldBe(StatusCode.Unavailable);
+        ex.StatusCode.ShouldBe(MentisStatusCode.Unavailable);
     }
 
     [Test]
@@ -202,7 +202,7 @@ public class MentisClientEndToEndTests
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => client.Billing.GetUsageAsync());
 
-        ex.StatusCode.ShouldBe(StatusCode.DeadlineExceeded);
+        ex.StatusCode.ShouldBe(MentisStatusCode.DeadlineExceeded);
     }
 
     [Test]

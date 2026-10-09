@@ -26,7 +26,8 @@ First public release.
 - Billing: current usage and monthly usage history of the tenant.
 - `QueryScope` on answers (`ChatMessage.QueryScope`) and as a document list filter.
 - `MentisException` for every server error: `StatusCode`, `ErrorCode` and per-field
-  `ValidationErrors`. Rate limiting is reported as `ResourceExhausted` /
+  `ValidationErrors`; `StatusCode` is the SDK's own `MentisStatusCode` enum, so
+  no gRPC `using` is needed. Rate limiting is reported as `ResourceExhausted` /
   `RateLimit.Exceeded`, an expired `Timeout` as `DeadlineExceeded`.
 - Public interfaces (`IMentisClient`, `IDocumentsClient`, `IConversationsClient`,
   `IBillingClient`) for testing and any DI container, plus `AddMentisClient(...)`

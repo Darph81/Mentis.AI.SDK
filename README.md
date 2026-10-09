@@ -242,13 +242,11 @@ Console.WriteLine($"{usage.TotalTokens} / {usage.MonthlyTokenLimit?.ToString() ?
 Every server error is raised as a `MentisException`:
 
 ```csharp
-using Grpc.Core; // StatusCode
-
 try
 {
     await client.Documents.GetAsync(documentId);
 }
-catch (MentisException ex) when (ex.StatusCode == StatusCode.NotFound)
+catch (MentisException ex) when (ex.StatusCode == MentisStatusCode.NotFound)
 {
     Console.WriteLine($"{ex.ErrorCode}: {ex.Message}");
 }

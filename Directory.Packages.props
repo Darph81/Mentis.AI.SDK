@@ -21,13 +21,15 @@
   </ItemGroup>
 
   <ItemGroup Label="Dependency injection / options (MIT) - only for AddMentisClient()">
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.11" />
+    <!-- Deliberately the lowest 10.0 version: this is the minimum every consumer is forced to, so keep it low
+         as long as `dotnet list package --vulnerable --include-transitive` is clean. -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Tests (MIT / BSD)">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageVersion Include="NUnit" Version="4.6.1" />
     <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
     <PackageVersion Include="NUnit.Analyzers" Version="4.14.0" />

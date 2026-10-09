@@ -80,7 +80,7 @@ public class DocumentsClientTests
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => _client.GetAsync(TestIds.Document1));
 
-        ex.StatusCode.ShouldBe(StatusCode.NotFound);
+        ex.StatusCode.ShouldBe(MentisStatusCode.NotFound);
         ex.ErrorCode.ShouldBe("Document.NotFound");
     }
 

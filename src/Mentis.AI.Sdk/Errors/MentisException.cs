@@ -31,12 +31,12 @@ public sealed class MentisException : Exception
 
     /// <summary>Creates an exception with the given message and inner exception.</summary>
     public MentisException(string message, Exception? innerException)
-        : this(StatusCode.Unknown, errorCode: null, message, NoValidationErrors, innerException)
+        : this(MentisStatusCode.Unknown, errorCode: null, message, NoValidationErrors, innerException)
     {
     }
 
     private MentisException(
-        StatusCode statusCode,
+        MentisStatusCode statusCode,
         string? errorCode,
         string message,
         IReadOnlyDictionary<string, IReadOnlyList<string>> validationErrors,
@@ -49,9 +49,10 @@ public sealed class MentisException : Exception
     }
 
     /// <summary>
-    /// The gRPC status code, e.g. <see cref="StatusCode.NotFound"/> or <see cref="StatusCode.InvalidArgument"/>.
+    /// The outcome category, e.g. <see cref="MentisStatusCode.NotFound"/> or
+    /// <see cref="MentisStatusCode.InvalidArgument"/>.
     /// </summary>
-    public StatusCode StatusCode { get; }
+    public MentisStatusCode StatusCode { get; }
 
     /// <summary>
     /// The Manager's machine-readable error code (e.g. <c>Document.NotFound</c>), or
@@ -61,12 +62,12 @@ public sealed class MentisException : Exception
 
     /// <summary>
     /// Per-field validation messages, keyed by lower-case field name. Empty unless
-    /// <see cref="StatusCode"/> is <see cref="StatusCode.InvalidArgument"/>.
+    /// <see cref="StatusCode"/> is <see cref="MentisStatusCode.InvalidArgument"/>.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> ValidationErrors { get; }
 
     internal static MentisException DeadlineExceeded(Exception innerException) => new(
-        StatusCode.DeadlineExceeded,
+        MentisStatusCode.DeadlineExceeded,
         errorCode: null,
         "The call did not complete within the configured Timeout.",
         NoValidationErrors,
@@ -92,7 +93,7 @@ public sealed class MentisException : Exception
         }
 
         return new MentisException(
-            exception.StatusCode,
+            (MentisStatusCode)(int)exception.StatusCode,
             errorCode,
             message,
             ReadValidationErrors(exception.Trailers),

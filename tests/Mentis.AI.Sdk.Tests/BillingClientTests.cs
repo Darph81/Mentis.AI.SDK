@@ -104,7 +104,7 @@ public class BillingClientTests
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => _client.GetUsageHistoryAsync());
 
-        ex.StatusCode.ShouldBe(StatusCode.Unauthenticated);
+        ex.StatusCode.ShouldBe(MentisStatusCode.Unauthenticated);
         ex.ErrorCode.ShouldBe("Auth.Invalid");
     }
 }

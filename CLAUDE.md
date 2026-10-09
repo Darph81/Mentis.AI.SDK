@@ -324,7 +324,9 @@ Validation errors additionally carry trailers `validation-error-<field>`
 (lowercase field name) → message.
 
 The SDK translates every `RpcException` into a single public
-**`MentisException`** exposing `StatusCode`, `ErrorCode` (parsed prefix, may
+**`MentisException`** exposing `StatusCode` (the SDK-owned enum
+`MentisStatusCode`, same names/values as gRPC's, mapped by cast and guarded by
+a unit test - consumers need no `Grpc.Core` using), `ErrorCode` (parsed prefix, may
 be null), `Message`, and `ValidationErrors`
 (`IReadOnlyDictionary<string, IReadOnlyList<string>>` - a field can have
 several messages). The original `RpcException` is kept

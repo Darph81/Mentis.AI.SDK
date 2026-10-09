@@ -174,7 +174,7 @@ public abstract class IntegrationTest
                 await delete();
                 return true;
             }
-            catch (MentisException ex) when (ex.StatusCode == StatusCode.NotFound)
+            catch (MentisException ex) when (ex.StatusCode == MentisStatusCode.NotFound)
             {
                 return true;
             }
