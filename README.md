@@ -310,14 +310,33 @@ scripts/protos.sh sync  --ref origin/main
 
 ### Integration tests and sample
 
-Both run against a real Manager. Put the connection of a **dedicated test
-tenant** into a `.env` file in the repository root (git-ignored):
+Both run against a real Manager. Without the environment variables the
+integration tests are skipped (they never run in CI).
+
+**What you need to provide:**
+
+| Need | Used by | Notes |
+|------|---------|-------|
+| A running Manager (h2c, default port `8080`) | everything | e.g. the Manager's Docker Compose stack |
+| A **dedicated test tenant** (`MENTIS_API_KEY`) | all tests | no monthly token limit; the tests delete what they create, but never use a production tenant |
+| A **second tenant with a monthly token limit of `0`** (`MENTIS_LIMIT_API_KEY`) | `TokenLimitTests` | optional; verifies the limit error without costing tokens |
+| An LLM available to the Manager, e.g. `ollama pull llama3.2:1b` | category `Llm` (`ChatTests`, `ODataTests`) | slow, consumes tokens; ignored when the test tenant's token limit is used up |
+| OData source on the test tenant, set **in the Manager's admin panel** (SDK has no admin API) | `ODataTests` (category `Llm`) | URL `https://services.odata.org/V3/Northwind/Northwind.svc/Customers?$top=5`, auth scheme `None`; needs internet access from the Manager. Opt in with `MENTIS_ODATA_NORTHWIND=1` |
+
+`McpTests` needs no MCP server: it only checks that a host that is not on the
+tenant's allow-list is rejected (`Mcp.ServerNotAllowed`). The success path of
+MCP is not covered by an automated test.
+
+Put the connection of the test tenant into a `.env` file in the repository
+root (git-ignored; end it with a newline):
 
 ```bash
 MENTIS_ENDPOINT=http://localhost:8080
 MENTIS_API_KEY=<tenantId>.<secret>
-# optional: a second tenant with a monthly token limit of 0, for the token-limit tests
+# optional: second tenant with a monthly token limit of 0
 MENTIS_LIMIT_API_KEY=<tenantId>.<secret>
+# optional: set to 1 once the test tenant's OData source points at Northwind (see above)
+MENTIS_ODATA_NORTHWIND=1
 ```
 
 ```bash
