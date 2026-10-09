@@ -323,6 +323,10 @@ integration tests are skipped (they never run in CI).
 | An LLM available to the Manager, e.g. `ollama pull llama3.2:1b` | category `Llm` (`ChatTests`, `ODataTests`) | slow, consumes tokens; ignored when the test tenant's token limit is used up |
 | OData source on the test tenant, set **in the Manager's admin panel** (SDK has no admin API) | `ODataTests` (category `Llm`) | URL `https://services.odata.org/V3/Northwind/Northwind.svc/`, auth scheme `None`; the Manager fetches exactly this URL (the service document), and needs outbound HTTPS to `services.odata.org`. Opt in with `MENTIS_ODATA_NORTHWIND=1` |
 
+`ODataTests` only proves the transport (a call with `odataSecret` succeeds, i.e. the
+Manager could fetch the source); it does not assert that the answer uses the data,
+because the small default model ignores injected context too often.
+
 `McpTests` needs no MCP server: it only checks that a host that is not on the
 tenant's allow-list is rejected (`Mcp.ServerNotAllowed`). The success path of
 MCP is not covered by an automated test.
