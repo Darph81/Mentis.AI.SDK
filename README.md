@@ -321,7 +321,7 @@ integration tests are skipped (they never run in CI).
 | A **dedicated test tenant** (`MENTIS_API_KEY`) | all tests | no monthly token limit; the tests delete what they create, but never use a production tenant |
 | A **second tenant with a monthly token limit of `0`** (`MENTIS_LIMIT_API_KEY`) | `TokenLimitTests` | optional; verifies the limit error without costing tokens |
 | An LLM available to the Manager, e.g. `ollama pull llama3.2:1b` | category `Llm` (`ChatTests`, `ODataTests`) | slow, consumes tokens; ignored when the test tenant's token limit is used up |
-| OData source on the test tenant, set **in the Manager's admin panel** (SDK has no admin API) | `ODataTests` (category `Llm`) | URL `https://services.odata.org/V3/Northwind/Northwind.svc/Customers?$top=5`, auth scheme `None`; needs internet access from the Manager. Opt in with `MENTIS_ODATA_NORTHWIND=1` |
+| OData source on the test tenant, set **in the Manager's admin panel** (SDK has no admin API) | `ODataTests` (category `Llm`) | URL `https://services.odata.org/V3/Northwind/Northwind.svc/`, auth scheme `None`; the Manager fetches exactly this URL (the service document), and needs outbound HTTPS to `services.odata.org`. Opt in with `MENTIS_ODATA_NORTHWIND=1` |
 
 `McpTests` needs no MCP server: it only checks that a host that is not on the
 tenant's allow-list is rejected (`Mcp.ServerNotAllowed`). The success path of

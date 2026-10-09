@@ -4,8 +4,9 @@ namespace Mentis.AI.Sdk.IntegrationTests;
 /// Chat with the tenant's OData data source (<c>odataSecret</c>). The OData source is configured by the Manager
 /// administrator (admin panel), not through the SDK, so this test is opt-in: set <c>MENTIS_ODATA_NORTHWIND=1</c>
 /// once the test tenant's OData endpoint points at
-/// <c>https://services.odata.org/V3/Northwind/Northwind.svc/Customers?$top=5</c> (auth scheme <c>None</c>; the
-/// public service needs no credential). Calls the LLM and the public internet, so it is slow and costs tokens.
+/// <c>https://services.odata.org/V3/Northwind/Northwind.svc/</c> (auth scheme <c>None</c>; the public service needs
+/// no credential). The Manager fetches exactly that URL, so the context is the service document: the list of
+/// entity sets (Categories, Customers, CustomerDemographics, ...). Calls the LLM and the public internet, so it is slow and costs tokens.
 /// </summary>
 [Category("Llm")]
 public class ODataTests : IntegrationTest
@@ -29,14 +30,14 @@ public class ODataTests : IntegrationTest
         // The secret is ignored by the public Northwind service, but must be accepted and passed along.
         ChatMessage answer = await Client.Conversations.SendMessageAsync(
             conversation.Id,
-            "Who is the contact person of the customer Alfreds Futterkiste, and in which city is it located?",
+            "Which collections (entity sets) does the OData service offer? List all of their names.",
             odataSecret: "unused-for-public-northwind",
             cancellationToken: Timeout);
 
         TestContext.Out.WriteLine(answer.Content);
         answer.Role.ShouldBe(MessageRole.Assistant);
 
-        // Only the OData context knows this customer: Maria Anders, Berlin.
-        answer.Content.ShouldContain("Maria Anders", Case.Insensitive);
+        // "CustomerDemographics" is an unusual name that only the OData context can supply.
+        answer.Content.ShouldContain("CustomerDemographics", Case.Insensitive);
     }
 }
