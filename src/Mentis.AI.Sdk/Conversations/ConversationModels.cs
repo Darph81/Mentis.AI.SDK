@@ -76,7 +76,9 @@ public sealed record Conversation
     /// <summary>When the conversation was started.</summary>
     public required DateTimeOffset CreatedAt { get; init; }
 
-    /// <summary>Documents the conversation draws its answers from.</summary>
+    /// <summary>
+    /// Documents linked to the conversation. Bookkeeping only - answers draw on all documents the tenant can see.
+    /// </summary>
     public required IReadOnlyList<Guid> LinkedDocumentIds { get; init; }
 
     /// <summary>Messages in chronological order.</summary>
@@ -101,7 +103,9 @@ public sealed record ConversationSummary
     /// <summary>When the conversation was started.</summary>
     public required DateTimeOffset CreatedAt { get; init; }
 
-    /// <summary>Documents the conversation draws its answers from.</summary>
+    /// <summary>
+    /// Documents linked to the conversation. Bookkeeping only - answers draw on all documents the tenant can see.
+    /// </summary>
     public required IReadOnlyList<Guid> LinkedDocumentIds { get; init; }
 
     /// <summary>Number of messages in the conversation.</summary>

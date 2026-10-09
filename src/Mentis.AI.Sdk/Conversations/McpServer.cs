@@ -9,17 +9,24 @@ namespace Mentis.AI.Sdk;
 /// <remarks>
 /// The configuration is ephemeral: the Manager neither stores nor logs the URL or the auth header. The
 /// Manager executes the tool calls automatically (bounded by its own round limits), audits every call by tool
-/// name and host, and is not available to admin tokens. Failures worth knowing (<see cref="MentisException.ErrorCode"/>):
-/// <c>Mcp.ServerNotAllowed</c> (host not on the deployment's allow-list), <c>Mcp.InsecureServerUrl</c>
-/// (plain <c>http</c> while the deployment requires https), <c>Mcp.InvalidServerUrl</c>,
-/// <c>Mcp.NoAllowedToolsAvailable</c> (none of <see cref="AllowedToolNames"/> is offered by the server) and
-/// <c>Mcp.Timeout</c>.
+/// name and host. MCP is off for a tenant until the Manager administrator puts hosts on that tenant's
+/// allow-list. Failures worth knowing (<see cref="MentisException.ErrorCode"/>):
+/// <list type="bullet">
+/// <item><c>Mcp.ServerNotAllowed</c> (<c>PermissionDenied</c>) - MCP is not enabled for the tenant, or the host
+/// is not on its allow-list.</item>
+/// <item><c>Mcp.InvalidServerUrl</c>, <c>Mcp.InsecureServerUrl</c> (<c>InvalidArgument</c>) - malformed URL, or plain
+/// <c>http</c> while the deployment requires https.</item>
+/// <item><c>Mcp.ConnectionFailed</c> - the MCP server could not be reached.</item>
+/// <item><c>Mcp.NoAllowedToolsAvailable</c> - none of <see cref="AllowedToolNames"/> is offered by the server.</item>
+/// <item><c>Mcp.Timeout</c>, <c>Mcp.ToolCallLimitReached</c> - the Manager's limits for the tool loop were hit.</item>
+/// </list>
 /// </remarks>
 public sealed record McpServer
 {
     /// <summary>
-    /// Absolute URL of the MCP endpoint (normally <c>https</c>). Its host must be on the deployment's
-    /// allow-list, otherwise the call fails with <c>PermissionDenied</c> before any connection is made.
+    /// Absolute URL of the MCP endpoint (normally <c>https</c>). Its host must be on the tenant's allow-list
+    /// (maintained by the Manager administrator), otherwise the call fails with <c>PermissionDenied</c> before
+    /// any connection is made.
     /// </summary>
     public required Uri Url { get; init; }
 

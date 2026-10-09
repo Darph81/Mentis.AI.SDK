@@ -8,18 +8,6 @@ While the major version is `0`, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
-### Added
-
-- MCP support: `Conversations.SendMessageAsync(..., McpServer? mcpServer)` lets the
-  model call the tools of a remote MCP server for one message (Manager Phase 73).
-
-### Changed
-
-- **Breaking:** `SendMessageAsync` has a new `mcpServer` parameter before
-  `cancellationToken`; callers passing the token positionally must use the name.
-
-## [0.1.0] - 2026-10-06
-
 First public release.
 
 ### Added
@@ -33,6 +21,8 @@ First public release.
 - Conversations: start, get, list, rename, delete, link and unlink documents,
   send a message (with optional `model` override and `odataSecret`), list messages,
   export as Markdown, and `ForUser(userId)` for conversations owned by one end user.
+- MCP: `SendMessageAsync(..., mcpServer: new McpServer { ... })` lets the model call
+  the tools of a remote MCP server for one message (Manager Phase 73/74).
 - Billing: current usage and monthly usage history of the tenant.
 - `QueryScope` on answers (`ChatMessage.QueryScope`) and as a document list filter.
 - `MentisException` for every server error: `StatusCode`, `ErrorCode` and per-field
@@ -46,5 +36,4 @@ First public release.
 - Every id is a `Guid`; models are immutable records.
 - Source Link and symbol package (`.snupkg`) for debugging into the SDK.
 
-[Unreleased]: https://github.com/Darph81/Mentis.AI.SDK/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/Darph81/Mentis.AI.SDK/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Darph81/Mentis.AI.SDK/commits/main

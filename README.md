@@ -134,7 +134,7 @@ Depend on the interfaces and substitute them in your unit tests:
 
 ```csharp
 var documents = Substitute.For<IDocumentsClient>();
-documents.GetAsync("d1", Arg.Any<CancellationToken>()).Returns(new Document { ... });
+documents.GetAsync(documentId, Arg.Any<CancellationToken>()).Returns(new Document { ... });
 ```
 
 ## Usage
@@ -148,7 +148,7 @@ var doc2 = await client.Documents.UploadAsync(stream, "report.docx", title: "Q3 
 
 // List with optional filters (newest first; pageNumber needs pageSize, max. 100 per page)
 var page = await client.Documents.ListAsync(status: DocumentStatus.Ready, titleContains: "report");
-var hits = await client.Documents.ListAsync(textContains: "handbook");   // title OR file name
+var named = await client.Documents.ListAsync(textContains: "handbook"); // title OR file name
 var own  = await client.Documents.ListAsync(scope: QueryScope.Tenant);  // only your own documents
 var page3 = await client.Documents.ListAsync(pageNumber: 3, pageSize: 50);
 
@@ -214,10 +214,12 @@ var reply = await alice.SendMessageAsync(
     });
 ```
 
-The server's host must be on the Manager's admin-configured allow-list, otherwise
-the call fails with `MentisException` (`PermissionDenied`, `Mcp.ServerNotAllowed`).
-Other error codes: `Mcp.InsecureServerUrl`, `Mcp.InvalidServerUrl`,
-`Mcp.NoAllowedToolsAvailable`, `Mcp.Timeout`, `Mcp.ToolCallLimitReached`.
+MCP is off for a tenant until the Manager administrator puts the server's host
+on that tenant's allow-list; until then the call fails with `MentisException`
+(`PermissionDenied`, `Mcp.ServerNotAllowed`). Other error codes:
+`Mcp.InvalidServerUrl` / `Mcp.InsecureServerUrl` (https required by default),
+`Mcp.ConnectionFailed`, `Mcp.NoAllowedToolsAvailable`, `Mcp.Timeout`,
+`Mcp.ToolCallLimitReached`.
 
 Answers draw on your own documents and the global documents shared with every
 tenant - linking documents to a conversation does not limit that. The Manager
