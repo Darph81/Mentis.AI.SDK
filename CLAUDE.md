@@ -562,6 +562,15 @@ Verified against a running Manager (2026-09-28):
   - Category `Llm` (`ChatTests`) calls the model, is slow and costs tokens.
     It needs the configured chat model to be available in the Manager's LLM
     provider (`ollama pull <model>` for Ollama).
+  - `ODataTests` (category `Llm`) is opt-in via `MENTIS_ODATA_NORTHWIND=1`: the
+    test tenant's OData source (admin panel only - the SDK has no admin API)
+    must point at `https://services.odata.org/V3/Northwind/Northwind.svc/`
+    with auth scheme `None`. Verified 2026-10-09 that without that setting the
+    Manager never fetches the endpoint (no outbound request in its log) and the
+    test fails - a missing setting, not an SDK bug. The README lists all
+    infrastructure the integration tests need.
+  - When appending to `.env` make sure the file ends with a newline first -
+    otherwise the new line is glued to the last value and corrupts a key.
 
 ```bash
 dotnet build
