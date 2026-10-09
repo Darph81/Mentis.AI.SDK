@@ -79,7 +79,7 @@ public class DocumentTests : IntegrationTest
         await Client.Documents.DeleteAsync(document.Id, Timeout);
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => Client.Documents.GetAsync(document.Id, Timeout));
-        ex.StatusCode.ShouldBe(StatusCode.NotFound);
+        ex.StatusCode.ShouldBe(MentisStatusCode.NotFound);
         ex.ErrorCode.ShouldBe("Document.NotFound");
         ex.Message.ShouldContain(document.Id.ToString());
     }
@@ -109,7 +109,7 @@ public class DocumentTests : IntegrationTest
         MentisException ex = await Should.ThrowAsync<MentisException>(
             () => Client.Documents.UploadAsync(second, "duplicate-again.txt", cancellationToken: Timeout));
 
-        ex.StatusCode.ShouldBe(StatusCode.FailedPrecondition);
+        ex.StatusCode.ShouldBe(MentisStatusCode.FailedPrecondition);
         ex.ErrorCode.ShouldBe("Document.DuplicateContent");
         ex.Message.ShouldContain(document.Id.ToString());
     }
@@ -123,7 +123,7 @@ public class DocumentTests : IntegrationTest
         MentisException ex = await Should.ThrowAsync<MentisException>(
             () => Client.Documents.RenameAsync(document.Id, new string('x', 201), Timeout));
 
-        ex.StatusCode.ShouldBe(StatusCode.InvalidArgument);
+        ex.StatusCode.ShouldBe(MentisStatusCode.InvalidArgument);
         ex.ErrorCode.ShouldNotBeNull();
         ex.ValidationErrors.ShouldNotBeEmpty();
         TestContext.Out.WriteLine($"{ex.ErrorCode}: {ex.Message} | fields: {string.Join(", ", ex.ValidationErrors.Keys)}");
@@ -152,6 +152,6 @@ public class DocumentTests : IntegrationTest
         }
 
         ex.ShouldNotBeNull();
-        ex.StatusCode.ShouldBe(StatusCode.ResourceExhausted);
+        ex.StatusCode.ShouldBe(MentisStatusCode.ResourceExhausted);
     }
 }

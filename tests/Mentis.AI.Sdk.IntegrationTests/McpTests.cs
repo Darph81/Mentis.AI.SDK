@@ -25,7 +25,7 @@ public class McpTests : IntegrationTest
                 },
                 cancellationToken: Timeout));
 
-        ex.StatusCode.ShouldBe(StatusCode.PermissionDenied);
+        ex.StatusCode.ShouldBe(MentisStatusCode.PermissionDenied);
         ex.ErrorCode.ShouldBe("Mcp.ServerNotAllowed");
         ex.Message.ShouldNotContain("never-used");
     }

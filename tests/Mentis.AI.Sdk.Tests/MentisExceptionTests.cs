@@ -11,7 +11,7 @@ public class MentisExceptionTests
 
         MentisException ex = MentisException.FromRpcException(rpc);
 
-        ex.StatusCode.ShouldBe(StatusCode.NotFound);
+        ex.StatusCode.ShouldBe(MentisStatusCode.NotFound);
         ex.ErrorCode.ShouldBe("Document.NotFound");
         ex.Message.ShouldBe("Document 'x' was not found.");
         ex.InnerException.ShouldBeSameAs(rpc);
@@ -46,7 +46,7 @@ public class MentisExceptionTests
 
         MentisException ex = MentisException.FromRpcException(rpc);
 
-        ex.StatusCode.ShouldBe(StatusCode.ResourceExhausted);
+        ex.StatusCode.ShouldBe(MentisStatusCode.ResourceExhausted);
         ex.ErrorCode.ShouldBe("RateLimit.Exceeded");
         ex.Message.ShouldBe("Too many requests, retry in 60 s.");
         ex.ValidationErrors.ShouldBeEmpty();
@@ -69,5 +69,18 @@ public class MentisExceptionTests
         ex.ValidationErrors.Keys.ShouldBe(["title", "sizeinbytes"], ignoreOrder: true);
         ex.ValidationErrors["title"].ShouldBe(["Title must not be empty.", "Title is too long."]);
         ex.ValidationErrors["sizeinbytes"].ShouldBe(["Size must be positive."]);
+    }
+
+    [Test]
+    public void MentisStatusCode_HasTheSameNamesAndValuesAsGrpcStatusCode()
+    {
+        // FromRpcException maps by cast; this keeps both enums in step (gRPC spells "OK" in capitals).
+        foreach (StatusCode code in Enum.GetValues<StatusCode>())
+        {
+            Enum.TryParse(code.ToString(), ignoreCase: true, out MentisStatusCode mapped).ShouldBeTrue(code.ToString());
+            ((int)mapped).ShouldBe((int)code);
+        }
+
+        Enum.GetValues<MentisStatusCode>().Length.ShouldBe(Enum.GetValues<StatusCode>().Length);
     }
 }

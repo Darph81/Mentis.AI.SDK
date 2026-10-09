@@ -592,7 +592,7 @@ public class ConversationsClientTests
 
         MentisException ex = await Should.ThrowAsync<MentisException>(() => _client.SendMessageAsync(TestIds.Conversation1, "Hi"));
 
-        ex.StatusCode.ShouldBe(StatusCode.FailedPrecondition);
+        ex.StatusCode.ShouldBe(MentisStatusCode.FailedPrecondition);
         ex.ErrorCode.ShouldBe("Tenant.MonthlyTokenLimitReached");
     }
 

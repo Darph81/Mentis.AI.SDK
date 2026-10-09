@@ -38,7 +38,7 @@ public class ConversationTests : IntegrationTest
 
         await conversations.DeleteAsync(started.Id, Timeout);
         MentisException ex = await Should.ThrowAsync<MentisException>(() => conversations.GetAsync(started.Id, Timeout));
-        ex.StatusCode.ShouldBe(StatusCode.NotFound);
+        ex.StatusCode.ShouldBe(MentisStatusCode.NotFound);
     }
 
     [Test]
@@ -47,7 +47,7 @@ public class ConversationTests : IntegrationTest
         MentisException ex = await Should.ThrowAsync<MentisException>(
             () => Client.Conversations.StartAsync(UniqueTitle(), [Guid.NewGuid()], Timeout));
 
-        ex.StatusCode.ShouldBe(StatusCode.NotFound);
+        ex.StatusCode.ShouldBe(MentisStatusCode.NotFound);
     }
 
     [Test]
@@ -60,8 +60,8 @@ public class ConversationTests : IntegrationTest
         owned.OwnerUserId.ShouldBe(alice.UserId);
 
         (await alice.GetAsync(owned.Id, Timeout)).Id.ShouldBe(owned.Id);
-        (await Should.ThrowAsync<MentisException>(() => bob.GetAsync(owned.Id, Timeout))).StatusCode.ShouldBe(StatusCode.NotFound);
-        (await Should.ThrowAsync<MentisException>(() => Client.Conversations.GetAsync(owned.Id, Timeout))).StatusCode.ShouldBe(StatusCode.NotFound);
+        (await Should.ThrowAsync<MentisException>(() => bob.GetAsync(owned.Id, Timeout))).StatusCode.ShouldBe(MentisStatusCode.NotFound);
+        (await Should.ThrowAsync<MentisException>(() => Client.Conversations.GetAsync(owned.Id, Timeout))).StatusCode.ShouldBe(MentisStatusCode.NotFound);
     }
 
     [Test]

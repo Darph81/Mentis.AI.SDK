@@ -35,7 +35,7 @@ public class ConnectionTests : IntegrationTest
         MentisException ex = await Should.ThrowAsync<MentisException>(
             () => client.Billing.GetUsageAsync(cancellationToken: Timeout));
 
-        ex.StatusCode.ShouldBe(StatusCode.Unauthenticated);
+        ex.StatusCode.ShouldBe(MentisStatusCode.Unauthenticated);
         ex.Message.ShouldNotContain("definitely-not-the-secret");
     }
 }

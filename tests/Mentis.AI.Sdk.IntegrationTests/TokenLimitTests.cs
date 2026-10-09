@@ -56,7 +56,7 @@ public class TokenLimitTests : IntegrationTest
         MentisException ex = await Should.ThrowAsync<MentisException>(
             () => _limited.Conversations.SendMessageAsync(conversation.Id, "Hello?", cancellationToken: Timeout));
 
-        ex.StatusCode.ShouldBe(StatusCode.FailedPrecondition);
+        ex.StatusCode.ShouldBe(MentisStatusCode.FailedPrecondition);
         ex.ErrorCode.ShouldBe("Tenant.MonthlyTokenLimitReached");
 
         // The rejected message is not stored and costs nothing.
