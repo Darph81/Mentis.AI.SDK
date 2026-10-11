@@ -1,6 +1,7 @@
 using Grpc.Core;
 using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
+using Grpc.Net.Client.Configuration;
 
 using Mentis.AI.Sdk.Internal;
 
@@ -93,7 +94,11 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
         return handler;
     }
 
-    private static GrpcChannel CreateChannel(MentisClientOptions options)
+    private static GrpcChannel CreateChannel(MentisClientOptions options) =>
+        GrpcChannel.ForAddress(options.Endpoint, CreateChannelOptions(options));
+
+    /// <summary>The options of an owned channel: transport, size limits and the optional rate-limit retry policy.</summary>
+    internal static GrpcChannelOptions CreateChannelOptions(MentisClientOptions options)
     {
         // ThrowOperationCanceledOnCancellation is deliberately off: it would also turn an expired
         // MentisClientOptions.Timeout into an OperationCanceledException. RpcInvoker maps a cancellation by the
@@ -113,6 +118,35 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
             channelOptions.MaxReceiveMessageSize = maxReceive;
         }
 
-        return GrpcChannel.ForAddress(options.Endpoint, channelOptions);
+        if (options.MaxRateLimitRetries > 0)
+        {
+            // Retries are done by gRPC itself. The Manager answers a rate-limited call with ResourceExhausted in a
+            // Trailers-Only response plus grpc-retry-pushback-ms, which gRPC honors as the exact wait; the backoff
+            // below only applies if the pushback is missing. The request was not processed, so this is safe for
+            // every call, including non-idempotent ones. Requests above MaxRetryBufferPerCallSize (1 MB, e.g.
+            // large uploads) are committed immediately and therefore never retried.
+            int attempts = options.MaxRateLimitRetries + 1;
+            channelOptions.MaxRetryAttempts = attempts;
+            channelOptions.ServiceConfig = new ServiceConfig
+            {
+                MethodConfigs =
+                {
+                    new MethodConfig
+                    {
+                        Names = { MethodName.Default },
+                        RetryPolicy = new RetryPolicy
+                        {
+                            MaxAttempts = attempts,
+                            InitialBackoff = TimeSpan.FromSeconds(5),
+                            MaxBackoff = TimeSpan.FromSeconds(60),
+                            BackoffMultiplier = 2,
+                            RetryableStatusCodes = { StatusCode.ResourceExhausted },
+                        },
+                    },
+                },
+            };
+        }
+
+        return channelOptions;
     }
 }
