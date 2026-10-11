@@ -228,6 +228,24 @@ generated C#.
   pinged. Pings do **not** extend a proxy's response timeout (nginx
   `grpc_read_timeout`); that is proxy configuration. An external channel keeps
   its own handler and ignores the option.
+- **Rate-limit retry** (roadmap item 7, done): `MentisClientOptions.MaxRateLimitRetries`
+  (0-5, default 0 = off, **opt-in**) puts a gRPC retry policy for
+  `ResourceExhausted` into the owned channel's `ServiceConfig`
+  (`MentisClient.CreateChannelOptions`). gRPC honors the Manager's
+  `grpc-retry-pushback-ms` as the exact wait (verified end-to-end: 250 calls
+  against the 100/60 s limiter all succeed and take 2.5 min); the 5 s..60 s
+  backoff only applies without a pushback. Safe for every call because a
+  rate-limited request was not processed. Consequences to remember: (1) it
+  retries *every* `ResourceExhausted`, but a request above gRPC's 1 MB
+  per-call retry buffer is committed immediately and never retried, which keeps
+  large uploads from being re-sent after a size rejection; (2) a retry can wait
+  up to a window, so it interacts with `Timeout` (the deadline spans all
+  attempts); (3) **`Unavailable` is deliberately not retried** - a call may have
+  been processed, and retrying `SendMessage`/`Upload*`/`Start*`/`Link*` would
+  duplicate messages and token costs; (4) an external channel ignores the
+  option. Unit tests use `MentisClient.CreateChannelOptions` with a fake
+  transport; `RateLimitRetryTests` (category `RateLimit`, `[Explicit]`) runs
+  against a real Manager.
 - gRPC reports a bare `HttpRequestException` as `Internal`; only a real
   connection failure (socket error) becomes `Unavailable`.
 
@@ -584,6 +602,7 @@ Verified against a running Manager (2026-09-28):
 
 ```bash
 dotnet build
+dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory=RateLimit"  # explicit, takes minutes
 dotnet test tests/Mentis.AI.Sdk.Tests                                   # unit tests
 dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory!=Llm"
 dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory=Llm"
@@ -672,7 +691,10 @@ into the sections above. Keep the order unless the owner says otherwise.
 ### Worth doing - decide deliberately
 
 - [x] **6. HTTP/2 keep-alive pings** (2026-10-11). See "Transport".
-- [ ] **7. Retry on transient errors.** Rate-limit rejections
+- [x] **7. Retry on rate limiting** (2026-10-11, done as the opt-in
+  `MaxRateLimitRetries`; see "Transport" and "Rate limiting" below). Original
+  analysis, kept for the reasoning:
+  **Retry on transient errors.** Rate-limit rejections
   (`ResourceExhausted` / `RateLimit.Exceeded`) are safe to retry for **every**
   call (nothing was processed) and carry `grpc-retry-pushback-ms` - an opt-in
   retry for exactly these is low-risk (the integration tests already do it via

@@ -35,6 +35,9 @@ First public release.
 - `MentisClientOptions`: endpoint, tenant id and secret (or a combined `ApiKey`),
   default `Timeout` and message size limits.
 - Every id is a `Guid`; models are immutable records.
+- Opt-in retry of rate-limited calls (`MentisClientOptions.MaxRateLimitRetries`, default 0):
+  the SDK waits for the next rate-limit window and repeats a call the Manager rejected with
+  `RateLimit.Exceeded`; safe for every operation because the call was not processed.
 - HTTP/2 keep-alive pings while a call is active (`MentisClientOptions.KeepAlivePingDelay`,
   default 30 s), so long chat calls survive idle-killing firewalls and load balancers.
 - Source Link and symbol package (`.snupkg`) for debugging into the SDK.

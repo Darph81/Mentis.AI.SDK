@@ -15,6 +15,8 @@ public sealed class MentisClientOptions
     /// </summary>
     public Uri Endpoint { get; set; } = new("http://localhost:8080");
 
+    private const int MaxAllowedRateLimitRetries = 5;
+
     /// <summary>The tenant id issued by the Manager administrator.</summary>
     public Guid? TenantId { get; set; }
 
@@ -55,6 +57,19 @@ public sealed class MentisClientOptions
     /// </remarks>
     public TimeSpan? KeepAlivePingDelay { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// How often a call that the Manager rejected because of its rate limit is repeated. Defaults to 0 (off).
+    /// </summary>
+    /// <remarks>
+    /// A rate-limited call was not processed, so repeating it is safe for every operation, including sending a
+    /// message. The wait is the one the Manager reports (the start of its next rate-limit window, up to a minute),
+    /// within the call's <see cref="Timeout"/> if set. Only this rejection is retried - never an unreachable
+    /// Manager, where a call may have been processed. Calls whose request is larger than 1 MB (large uploads) are
+    /// not retried. Only used when the SDK creates the connection; ignored when you pass your own
+    /// <c>GrpcChannel</c> (configure a gRPC retry policy there). Range 0-5.
+    /// </remarks>
+    public int MaxRateLimitRetries { get; set; }
+
     /// <summary>Validates the options and returns the credential sent as Bearer token.</summary>
     internal string GetValidatedApiKey()
     {
@@ -67,6 +82,11 @@ public sealed class MentisClientOptions
         if (Timeout is { } timeout && timeout <= TimeSpan.Zero)
         {
             throw new ArgumentException("Timeout must be positive.", "options");
+        }
+
+        if (MaxRateLimitRetries is < 0 or > MaxAllowedRateLimitRetries)
+        {
+            throw new ArgumentException($"MaxRateLimitRetries must be between 0 and {MaxAllowedRateLimitRetries}.", "options");
         }
 
         if (KeepAlivePingDelay is { } pingDelay && pingDelay <= TimeSpan.Zero)

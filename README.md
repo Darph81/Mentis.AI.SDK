@@ -273,6 +273,25 @@ catch (MentisException ex) when (ex.ValidationErrors.Count > 0)
 
 Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 
+## Rate limiting
+
+The Manager allows a fixed number of requests per tenant and time window
+(100 per 60 seconds by default). A rejected call fails with a `MentisException`
+(`ResourceExhausted`, `ErrorCode == "RateLimit.Exceeded"`) and was **not**
+processed. Set `MaxRateLimitRetries` to let the SDK wait for the next window and
+repeat such a call transparently:
+
+```csharp
+builder.Services.AddMentisClient(endpoint, tenantId, secret, o => o.MaxRateLimitRetries = 2);
+```
+
+Only this rejection is repeated - safe for every operation, including
+`SendMessageAsync`. An unreachable Manager (`Unavailable`) is never retried, since
+the call may have been processed. A retry can wait up to the window length, so
+combine it with a suitable `Timeout`. Calls with requests above 1 MB (large
+uploads) are not retried. With your own `GrpcChannel` the option is ignored -
+configure a gRPC retry policy for `ResourceExhausted` on that channel instead.
+
 ## Configuration
 
 | Option                       | Description                                                          |
@@ -281,6 +300,7 @@ Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 | `TenantId` / `Secret`        | Tenant credentials                                                   |
 | `ApiKey`                     | Alternative to the above: `"<tenantId>.<secret>"`                    |
 | `Timeout`                    | Default deadline per call (optional)                                 |
+| `MaxRateLimitRetries`        | Repeat calls the Manager rejected because of its rate limit, up to this many times (0-5, default 0 = off); see [Rate limiting](#rate-limiting) |
 | `KeepAlivePingDelay`         | HTTP/2 keep-alive ping interval while a call is running (default 30 s, `null` disables); keeps long chat calls alive through idle-killing firewalls and load balancers |
 | `MaxSendMessageSizeBytes`    | Optional client-side cap on request size (default: unlimited)        |
 | `MaxReceiveMessageSizeBytes` | Response size limit (default 4 MB) - raise to download large documents |
@@ -356,6 +376,10 @@ set -a && . ./.env && set +a && dotnet run --project samples/Mentis.AI.Sdk.Sampl
 ```
 
 The tests delete everything they create. Without the variables they are skipped.
+
+`RateLimitRetryTests` deliberately exceeds the Manager's rate limit with the
+`MENTIS_LIMIT_API_KEY` tenant and takes a few minutes, so it only runs when
+selected: `dotnet test tests/Mentis.AI.Sdk.IntegrationTests --filter "TestCategory=RateLimit"`.
 
 ## License
 

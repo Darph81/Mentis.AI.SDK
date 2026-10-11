@@ -227,6 +227,94 @@ public class MentisClientEndToEndTests
             new Proto.GetTenantUsageRequest()).Dispose());
     }
 
+    [Test]
+    public async Task RateLimitRetry_RepeatsTheRejectedCallAndReturnsTheResult()
+    {
+        int calls = 0;
+        using var handler = new FakeGrpcHandler((_, _) => Task.FromResult(++calls == 1
+            ? RateLimited(pushbackMs: 10)
+            : GrpcResponse(new Proto.GetTenantUsageResponse { Usage = new Proto.TenantUsage { TotalTokens = 7 } })));
+        using GrpcChannel channel = CreateRetryChannel(handler, maxRetries: 2);
+        using var client = new MentisClient(channel, new MentisClientOptions { ApiKey = ApiKey });
+
+        TenantUsage usage = await client.Billing.GetUsageAsync();
+
+        usage.TotalTokens.ShouldBe(7);
+        handler.Requests.Count.ShouldBe(2);
+    }
+
+    [Test]
+    public async Task RateLimitRetry_GivesUpAfterTheConfiguredRetries()
+    {
+        using var handler = new FakeGrpcHandler((_, _) => Task.FromResult(RateLimited(pushbackMs: 10)));
+        using GrpcChannel channel = CreateRetryChannel(handler, maxRetries: 2);
+        using var client = new MentisClient(channel, new MentisClientOptions { ApiKey = ApiKey });
+
+        MentisException ex = await Should.ThrowAsync<MentisException>(() => client.Billing.GetUsageAsync());
+
+        ex.ErrorCode.ShouldBe("RateLimit.Exceeded");
+        handler.Requests.Count.ShouldBe(3);
+    }
+
+    [Test]
+    public async Task RateLimitRetry_OffByDefault_DoesNotRepeat()
+    {
+        using var handler = new FakeGrpcHandler((_, _) => Task.FromResult(RateLimited(pushbackMs: 10)));
+        using GrpcChannel channel = CreateRetryChannel(handler, maxRetries: 0);
+        using var client = new MentisClient(channel, new MentisClientOptions { ApiKey = ApiKey });
+
+        await Should.ThrowAsync<MentisException>(() => client.Billing.GetUsageAsync());
+
+        handler.Requests.Count.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task RateLimitRetry_DoesNotRetryOtherErrors()
+    {
+        using var handler = new FakeGrpcHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Version = HttpVersion.Version20, Content = new ByteArrayContent([]) };
+            response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/grpc");
+            response.Headers.Add("grpc-status", Code(StatusCode.Unavailable));
+            response.Headers.Add("grpc-message", "gone");
+            return Task.FromResult(response);
+        });
+        using GrpcChannel channel = CreateRetryChannel(handler, maxRetries: 3);
+        using var client = new MentisClient(channel, new MentisClientOptions { ApiKey = ApiKey });
+
+        await Should.ThrowAsync<MentisException>(() => client.Billing.GetUsageAsync());
+
+        handler.Requests.Count.ShouldBe(1);
+    }
+
+    [TestCase(-1)]
+    [TestCase(6)]
+    public void Constructor_WithMaxRateLimitRetriesOutOfRange_Throws(int retries)
+    {
+        var options = new MentisClientOptions { ApiKey = ApiKey, MaxRateLimitRetries = retries };
+
+        Should.Throw<ArgumentException>(() => new MentisClient(options));
+    }
+
+    /// <summary>The Manager's rate-limit answer: Trailers-Only, status in the headers, plus the retry pushback.</summary>
+    private static HttpResponseMessage RateLimited(int pushbackMs)
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Version = HttpVersion.Version20, Content = new ByteArrayContent([]) };
+        response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/grpc");
+        response.Headers.Add("grpc-status", Code(StatusCode.ResourceExhausted));
+        response.Headers.Add("grpc-message", "RateLimit.Exceeded: Too many requests, retry in 60 s.");
+        response.Headers.Add("grpc-retry-pushback-ms", pushbackMs.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return response;
+    }
+
+    /// <summary>A channel built from the options an owned channel would get, but over the fake transport.</summary>
+    private static GrpcChannel CreateRetryChannel(HttpMessageHandler handler, int maxRetries)
+    {
+        GrpcChannelOptions options = MentisClient.CreateChannelOptions(new MentisClientOptions { MaxRateLimitRetries = maxRetries });
+        options.HttpHandler = handler;
+        return GrpcChannel.ForAddress("http://mentis.test", options);
+    }
+
     private static string Code(StatusCode statusCode) => ((int)statusCode).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     private static GrpcChannel CreateChannel(HttpMessageHandler handler, bool throwOperationCanceled = false) =>
