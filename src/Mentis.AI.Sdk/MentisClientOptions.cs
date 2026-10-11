@@ -43,6 +43,18 @@ public sealed class MentisClientOptions
     /// </summary>
     public int? MaxReceiveMessageSizeBytes { get; set; }
 
+    /// <summary>
+    /// How often an HTTP/2 keep-alive ping is sent while a call is in progress. Defaults to 30 seconds.
+    /// <see langword="null"/> disables pings.
+    /// </summary>
+    /// <remarks>
+    /// Chat calls can take minutes, and firewalls and load balancers drop connections they see as idle. Pings keep
+    /// such a connection open and detect a dead one. They do not extend a proxy's own response timeout (e.g.
+    /// nginx <c>grpc_read_timeout</c>) - raise that on the proxy. Only used when the SDK creates the connection;
+    /// ignored when you pass your own <c>GrpcChannel</c>.
+    /// </remarks>
+    public TimeSpan? KeepAlivePingDelay { get; set; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Validates the options and returns the credential sent as Bearer token.</summary>
     internal string GetValidatedApiKey()
     {
@@ -55,6 +67,11 @@ public sealed class MentisClientOptions
         if (Timeout is { } timeout && timeout <= TimeSpan.Zero)
         {
             throw new ArgumentException("Timeout must be positive.", "options");
+        }
+
+        if (KeepAlivePingDelay is { } pingDelay && pingDelay <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("KeepAlivePingDelay must be positive or null.", "options");
         }
 
         if (!string.IsNullOrWhiteSpace(ApiKey))

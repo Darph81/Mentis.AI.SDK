@@ -23,6 +23,23 @@ public class ConnectionTests : IntegrationTest
     }
 
     [Test]
+    public async Task OwnedChannel_WithShortKeepAlive_StaysUsableAcrossIdleTime()
+    {
+        // The SDK's own channel (not the test's shared one) with HTTP/2 pings every second: the connection must
+        // survive idle time and further calls (a ping on an idle connection must not break it).
+        await using var client = new MentisClient(new MentisClientOptions
+        {
+            Endpoint = Endpoint,
+            ApiKey = ApiKey,
+            KeepAlivePingDelay = TimeSpan.FromSeconds(1),
+        });
+
+        (await client.Billing.GetUsageAsync(cancellationToken: Timeout)).TenantId.ShouldBe(TenantId);
+        await Task.Delay(TimeSpan.FromSeconds(3), Timeout);
+        (await client.Billing.GetUsageAsync(cancellationToken: Timeout)).TenantId.ShouldBe(TenantId);
+    }
+
+    [Test]
     public async Task WrongSecret_ThrowsUnauthenticated()
     {
         await using var client = new MentisClient(new MentisClientOptions
