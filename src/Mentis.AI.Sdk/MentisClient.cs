@@ -17,6 +17,8 @@ namespace Mentis.AI.Sdk;
 /// </remarks>
 public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
 {
+    private static readonly TimeSpan KeepAlivePingTimeout = TimeSpan.FromSeconds(20);
+
     private readonly GrpcChannel? _ownedChannel;
 
     /// <summary>Creates a client with its own connection to the Manager.</summary>
@@ -70,12 +72,37 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>The HTTP transport of an owned channel: HTTP/2 with keep-alive pings while calls are active.</summary>
+    internal static SocketsHttpHandler CreateHandler(MentisClientOptions options)
+    {
+        var handler = new SocketsHttpHandler
+        {
+            // A single HTTP/2 connection is limited to ~100 concurrent streams; open more when needed.
+            EnableMultipleHttp2Connections = true,
+        };
+
+        if (options.KeepAlivePingDelay is { } pingDelay)
+        {
+            // Only while a call is in progress: a long SendMessage keeps its connection alive through idle-killing
+            // firewalls and load balancers, and a dead peer is noticed, without pinging idle connections.
+            handler.KeepAlivePingPolicy = HttpKeepAlivePingPolicy.WithActiveRequests;
+            handler.KeepAlivePingDelay = pingDelay;
+            handler.KeepAlivePingTimeout = KeepAlivePingTimeout;
+        }
+
+        return handler;
+    }
+
     private static GrpcChannel CreateChannel(MentisClientOptions options)
     {
         // ThrowOperationCanceledOnCancellation is deliberately off: it would also turn an expired
         // MentisClientOptions.Timeout into an OperationCanceledException. RpcInvoker maps a cancellation by the
         // caller's token itself, so a deadline surfaces as MentisException(DeadlineExceeded).
-        var channelOptions = new GrpcChannelOptions();
+        var channelOptions = new GrpcChannelOptions
+        {
+            HttpHandler = CreateHandler(options),
+            DisposeHttpClient = true,
+        };
         if (options.MaxSendMessageSizeBytes is { } maxSend)
         {
             channelOptions.MaxSendMessageSize = maxSend;

@@ -281,12 +281,18 @@ Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 | `TenantId` / `Secret`        | Tenant credentials                                                   |
 | `ApiKey`                     | Alternative to the above: `"<tenantId>.<secret>"`                    |
 | `Timeout`                    | Default deadline per call (optional)                                 |
+| `KeepAlivePingDelay`         | HTTP/2 keep-alive ping interval while a call is running (default 30 s, `null` disables); keeps long chat calls alive through idle-killing firewalls and load balancers |
 | `MaxSendMessageSizeBytes`    | Optional client-side cap on request size (default: unlimited)        |
 | `MaxReceiveMessageSizeBytes` | Response size limit (default 4 MB) - raise to download large documents |
 
 Uploads are sent as a single message. The Manager's request limit is its
 `GrpcHost:MaxReceiveMessageSizeBytes` setting (32 MB in its default
 configuration).
+
+Chat calls can take minutes. The SDK sends HTTP/2 keep-alive pings while a call
+is running, so firewalls and load balancers do not drop the connection as idle.
+A reverse proxy's own response timeout (e.g. nginx `grpc_read_timeout`) is not
+affected by pings - raise it on the proxy if chat answers take longer.
 
 The Manager listens on plain HTTP/2 (h2c). Use `http://` for direct
 connections and `https://` when a TLS reverse proxy is in front of it.

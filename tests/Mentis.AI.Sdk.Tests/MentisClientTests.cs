@@ -57,6 +57,48 @@ public class MentisClientTests
     }
 
     [Test]
+    public void CreateHandler_Default_PingsEvery30SecondsWhileCallsAreActive()
+    {
+        using SocketsHttpHandler handler = MentisClient.CreateHandler(new MentisClientOptions());
+
+        handler.KeepAlivePingPolicy.ShouldBe(HttpKeepAlivePingPolicy.WithActiveRequests);
+        handler.KeepAlivePingDelay.ShouldBe(TimeSpan.FromSeconds(30));
+        handler.KeepAlivePingTimeout.ShouldBe(TimeSpan.FromSeconds(20));
+        handler.EnableMultipleHttp2Connections.ShouldBeTrue();
+    }
+
+    [Test]
+    public void CreateHandler_WithCustomDelay_UsesIt()
+    {
+        using SocketsHttpHandler handler = MentisClient.CreateHandler(
+            new MentisClientOptions { KeepAlivePingDelay = TimeSpan.FromSeconds(10) });
+
+        handler.KeepAlivePingDelay.ShouldBe(TimeSpan.FromSeconds(10));
+    }
+
+    [Test]
+    public void CreateHandler_WithNullDelay_DisablesPings()
+    {
+        using SocketsHttpHandler handler = MentisClient.CreateHandler(new MentisClientOptions { KeepAlivePingDelay = null });
+
+        handler.KeepAlivePingPolicy.ShouldBe(HttpKeepAlivePingPolicy.Always);
+        handler.KeepAlivePingDelay.ShouldBe(Timeout.InfiniteTimeSpan);
+    }
+
+    [TestCase(0)]
+    [TestCase(-5)]
+    public void Constructor_WithNonPositiveKeepAliveDelay_Throws(int seconds)
+    {
+        var options = new MentisClientOptions
+        {
+            ApiKey = $"{TestIds.Tenant1}.secret",
+            KeepAlivePingDelay = TimeSpan.FromSeconds(seconds),
+        };
+
+        Should.Throw<ArgumentException>(() => new MentisClient(options));
+    }
+
+    [Test]
     public async Task Constructor_WithValidOptions_ExposesServiceClients()
     {
         await using var client = new MentisClient(new MentisClientOptions { ApiKey = $"{TestIds.Tenant1}.secret" });

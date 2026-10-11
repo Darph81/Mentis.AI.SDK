@@ -35,6 +35,8 @@ First public release.
 - `MentisClientOptions`: endpoint, tenant id and secret (or a combined `ApiKey`),
   default `Timeout` and message size limits.
 - Every id is a `Guid`; models are immutable records.
+- HTTP/2 keep-alive pings while a call is active (`MentisClientOptions.KeepAlivePingDelay`,
+  default 30 s), so long chat calls survive idle-killing firewalls and load balancers.
 - Source Link and symbol package (`.snupkg`) for debugging into the SDK.
 
 [Unreleased]: https://github.com/Darph81/Mentis.AI.SDK/commits/main

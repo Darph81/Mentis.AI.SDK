@@ -218,6 +218,16 @@ generated C#.
   - for external channels that did set the option - turns an
   `OperationCanceledException` without a cancelled caller token into
   `DeadlineExceeded`.
+- **Keep-alive pings** (roadmap item 6, done): the owned channel uses a
+  `SocketsHttpHandler` (`MentisClient.CreateHandler`) with
+  `KeepAlivePingPolicy = WithActiveRequests`, `KeepAlivePingDelay` from
+  `MentisClientOptions.KeepAlivePingDelay` (default 30 s, `null` = off) and a
+  fixed 20 s ping timeout, plus `EnableMultipleHttp2Connections = true`
+  (>100 concurrent streams) and `DisposeHttpClient = true` (the channel owns
+  the handler). Pings only run while a call is active - idle connections are not
+  pinged. Pings do **not** extend a proxy's response timeout (nginx
+  `grpc_read_timeout`); that is proxy configuration. An external channel keeps
+  its own handler and ignores the option.
 - gRPC reports a bare `HttpRequestException` as `Internal`; only a real
   connection failure (socket error) becomes `Unavailable`.
 
@@ -661,10 +671,7 @@ into the sections above. Keep the order unless the owner says otherwise.
 
 ### Worth doing - decide deliberately
 
-- [ ] **6. HTTP/2 keep-alive pings.** `SendMessageAsync` can take minutes
-  (LLM generation); reverse proxies drop idle connections. Configure
-  `SocketsHttpHandler.KeepAlivePingDelay/Timeout` on the owned channel.
-  Invisible to users.
+- [x] **6. HTTP/2 keep-alive pings** (2026-10-11). See "Transport".
 - [ ] **7. Retry on transient errors.** Rate-limit rejections
   (`ResourceExhausted` / `RateLimit.Exceeded`) are safe to retry for **every**
   call (nothing was processed) and carry `grpc-retry-pushback-ms` - an opt-in
