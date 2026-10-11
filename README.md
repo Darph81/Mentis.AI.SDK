@@ -273,6 +273,21 @@ catch (MentisException ex) when (ex.ValidationErrors.Count > 0)
 
 Cancelling via a `CancellationToken` throws `OperationCanceledException`.
 
+## Logging
+
+Logging is off unless you provide an `ILoggerFactory`. With `AddMentisClient`
+the application's logging is picked up automatically; otherwise set
+`MentisClientOptions.LoggerFactory`. Calls are logged by the underlying gRPC
+channel under the `Grpc.Net.Client` categories (call start and finish, failures,
+retries), so you control them with ordinary category filters:
+
+```json
+{ "Logging": { "LogLevel": { "Grpc.Net.Client": "Information" } } }
+```
+
+The credential is never logged. With your own `GrpcChannel` the option is
+ignored - give that channel a logger factory instead.
+
 ## Rate limiting
 
 The Manager allows a fixed number of requests per tenant and time window
@@ -300,6 +315,7 @@ configure a gRPC retry policy for `ResourceExhausted` on that channel instead.
 | `TenantId` / `Secret`        | Tenant credentials                                                   |
 | `ApiKey`                     | Alternative to the above: `"<tenantId>.<secret>"`                    |
 | `Timeout`                    | Default deadline per call (optional)                                 |
+| `LoggerFactory`              | Optional `ILoggerFactory`; the SDK's gRPC channel logs its calls through it (default: no logging; `AddMentisClient` uses the container's factory) |
 | `MaxRateLimitRetries`        | Repeat calls the Manager rejected because of its rate limit, up to this many times (0-5, default 0 = off); see [Rate limiting](#rate-limiting) |
 | `KeepAlivePingDelay`         | HTTP/2 keep-alive ping interval while a call is running (default 30 s, `null` disables); keeps long chat calls alive through idle-killing firewalls and load balancers |
 | `MaxSendMessageSizeBytes`    | Optional client-side cap on request size (default: unlimited)        |

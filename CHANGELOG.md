@@ -35,6 +35,8 @@ First public release.
 - `MentisClientOptions`: endpoint, tenant id and secret (or a combined `ApiKey`),
   default `Timeout` and message size limits.
 - Every id is a `Guid`; models are immutable records.
+- Optional logging: `MentisClientOptions.LoggerFactory` (`AddMentisClient` uses the container's
+  `ILoggerFactory`); the channel logs its calls under `Grpc.Net.Client`, never the credential.
 - Opt-in retry of rate-limited calls (`MentisClientOptions.MaxRateLimitRetries`, default 0):
   the SDK waits for the next rate-limit window and repeats a call the Manager rejected with
   `RateLimit.Exceeded`; safe for every operation because the call was not processed.
