@@ -2,6 +2,7 @@ using Mentis.AI.Sdk;
 using Mentis.AI.Sdk.Internal;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -57,7 +58,14 @@ public static class MentisServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configure);
 
         services.AddOptions<MentisClientOptions>().Configure(configure);
-        services.TryAddSingleton(sp => new MentisClient(sp.GetRequiredService<IOptions<MentisClientOptions>>().Value));
+        services.TryAddSingleton(sp =>
+        {
+            MentisClientOptions options = sp.GetRequiredService<IOptions<MentisClientOptions>>().Value;
+
+            // Use the application's logging unless the caller configured a factory explicitly.
+            options.LoggerFactory ??= sp.GetService<ILoggerFactory>();
+            return new MentisClient(options);
+        });
         services.TryAddSingleton<IMentisClient>(sp => sp.GetRequiredService<MentisClient>());
         services.TryAddSingleton(sp => sp.GetRequiredService<MentisClient>().Documents);
         services.TryAddSingleton(sp => sp.GetRequiredService<MentisClient>().Conversations);

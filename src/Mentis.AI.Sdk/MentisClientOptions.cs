@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Mentis.AI.Sdk;
 
 /// <summary>
@@ -56,6 +58,18 @@ public sealed class MentisClientOptions
     /// ignored when you pass your own <c>GrpcChannel</c>.
     /// </remarks>
     public TimeSpan? KeepAlivePingDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Optional logger factory. When set, the SDK's gRPC channel logs its calls (start, finish, failures,
+    /// retries) through it under the <c>Grpc.Net.Client</c> categories. <see langword="null"/> (the default)
+    /// logs nothing. With <c>AddMentisClient</c> the container's <see cref="ILoggerFactory"/> is used when this
+    /// is not set.
+    /// </summary>
+    /// <remarks>
+    /// The credential is never logged. Only used when the SDK creates the connection; ignored when you pass
+    /// your own <c>GrpcChannel</c> (give that channel its own logger factory).
+    /// </remarks>
+    public ILoggerFactory? LoggerFactory { get; set; }
 
     /// <summary>
     /// How often a call that the Manager rejected because of its rate limit is repeated. Defaults to 0 (off).

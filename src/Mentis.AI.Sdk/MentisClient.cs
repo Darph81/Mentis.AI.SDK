@@ -107,6 +107,7 @@ public sealed class MentisClient : IMentisClient, IAsyncDisposable, IDisposable
         {
             HttpHandler = CreateHandler(options),
             DisposeHttpClient = true,
+            LoggerFactory = options.LoggerFactory,
         };
         if (options.MaxSendMessageSizeBytes is { } maxSend)
         {

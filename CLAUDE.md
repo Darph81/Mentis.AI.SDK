@@ -72,7 +72,9 @@ secrets before going public (none found).
 - `Grpc.Net.Client`, `Google.Protobuf`, `Grpc.Tools` (build-time only)
 - `Microsoft.Extensions.DependencyInjection.Abstractions` +
   `Microsoft.Extensions.Options` only for the optional `AddMentisClient()`
-  registration helper - nothing else.
+  registration helper, and `Microsoft.Extensions.Logging.Abstractions` only for
+  `MentisClientOptions.LoggerFactory` (already a dependency of
+  `Grpc.Net.Client`) - nothing else.
 - Tests: **NUnit + NSubstitute + Shouldly** (same as the Manager).
   **Not** FluentAssertions or MediatR (license changes - the Manager
   explicitly avoids them, so do we).
@@ -702,9 +704,14 @@ into the sections above. Keep the order unless the owner says otherwise.
   have been processed, so **never** retry it for non-idempotent calls
   (`SendMessage`, `Upload*`, `Start*`, `Link*`) - that would duplicate
   messages and token costs.
-- [ ] **8. Optional logging.** `ILoggerFactory` on `MentisClientOptions`,
-  passed to `GrpcChannelOptions.LoggerFactory`. No new mandatory dependency
-  beyond `Microsoft.Extensions.Logging.Abstractions`.
+- [x] **8. Optional logging** (2026-10-11). `MentisClientOptions.LoggerFactory`
+  is passed to `GrpcChannelOptions.LoggerFactory` of the owned channel; the SDK
+  adds no log statements of its own (the gRPC channel logs call start/finish,
+  failures and retries under `Grpc.Net.Client`). `AddMentisClient` fills it from
+  the container's `ILoggerFactory` when not set explicitly (it mutates the
+  singleton options value with `??=`, idempotent). The "never log the secret"
+  rule is covered by a unit test that captures every level during a successful
+  and a failed call. An external channel ignores the option.
 
 ### Decided against (for now) - don't re-propose without a new reason
 

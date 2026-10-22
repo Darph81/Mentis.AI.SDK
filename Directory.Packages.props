@@ -20,6 +20,10 @@
     <PackageVersion Include="Google.Protobuf" Version="3.31.1" />
   </ItemGroup>
 
+  <ItemGroup Label="Logging abstractions (MIT) - only for MentisClientOptions.LoggerFactory; already a dependency of Grpc.Net.Client">
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Dependency injection / options (MIT) - only for AddMentisClient()">
     <!-- Deliberately the lowest 10.0 version: this is the minimum every consumer is forced to, so keep it low
          as long as "dotnet list package" with the vulnerable and transitive options is clean. -->
