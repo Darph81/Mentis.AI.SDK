@@ -629,9 +629,22 @@ Verified against a running Manager (2026-09-28):
     must point at `https://services.odata.org/V3/Northwind/Northwind.svc/`
     with auth scheme `None`. Verified 2026-10-09 that without that setting the
     Manager never fetches the endpoint (no outbound request in its log) and the
-    test fails - a missing setting, not an SDK bug. The test sends a non-empty
-    `odataSecret`, which also satisfies the Manager's per-message opt-in. The
-    README lists all infrastructure the integration tests need.
+    test fails - a missing setting, not an SDK bug. The tests cover the
+    per-message opt-in: `odataSecret: ""` and a non-empty value must make the
+    Manager fetch the source (they need its outbound HTTPS), while a call
+    **without** `odataSecret` must succeed even if the source is unreachable
+    (`SendMessage_WithoutODataSecret_DoesNotNeedTheODataSource`, the regression
+    test for the old "every chat fails" behavior). Verified 2026-10-22 against
+    the Manager's log: `null` -> no outbound request, `""` -> `GET
+    https://services.odata.org/...` right after the call starts.
+    **Environment note (2026-10-22):** on the owner's machine the Manager
+    container cannot open outbound TCP 443 (port 80 and DNS work, MTU is fine,
+    not an `internal` network - a host firewall/forwarding rule), so the two
+    with-secret tests fail after ~100 s with `OData.RequestFailed` and a hint;
+    check with `docker exec <container> curl -sS -m 15 -o /dev/null -w
+    '%{http_code}' https://services.odata.org/`. The failure is the
+    environment, not the SDK. The README lists all infrastructure the
+    integration tests need.
   - When appending to `.env` make sure the file ends with a newline first -
     otherwise the new line is glued to the last value and corrupts a key.
 
