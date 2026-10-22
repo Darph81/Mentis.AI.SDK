@@ -17,7 +17,7 @@ namespace Mentis.AI.Sdk.IntegrationTests;
 /// </remarks>
 public abstract class IntegrationTest
 {
-    private readonly List<Guid> _documentIds = [];
+    private readonly List<(IDocumentsClient Client, Guid Id)> _documents = [];
     private readonly List<(IConversationsClient Client, Guid Id)> _conversations = [];
 
     protected Uri Endpoint { get; private set; } = null!;
@@ -116,16 +116,16 @@ public abstract class IntegrationTest
             }
         }
 
-        foreach (Guid id in _documentIds)
+        foreach ((IDocumentsClient client, Guid id) in _documents)
         {
-            if (!await TryDeleteAsync(() => Client.Documents.DeleteAsync(id)))
+            if (!await TryDeleteAsync(() => client.DeleteAsync(id)))
             {
                 leftovers.Add($"document {id}");
             }
         }
 
         _conversations.Clear();
-        _documentIds.Clear();
+        _documents.Clear();
         _timeoutSource?.Dispose();
 
         if (leftovers.Count > 0)
@@ -136,14 +136,19 @@ public abstract class IntegrationTest
 
     /// <summary>
     /// Uploads a small text document with unique content (the Manager rejects byte-identical
-    /// uploads across all tenants) and registers it for cleanup.
+    /// uploads within a tenant) and registers it for cleanup.
     /// </summary>
-    protected async Task<Document> UploadTextAsync(string text, string? title = null, string fileName = "sdk-integration-test.txt")
+    protected async Task<Document> UploadTextAsync(
+        string text,
+        string? title = null,
+        string fileName = "sdk-integration-test.txt",
+        MentisClient? owner = null)
     {
         string unique = $"{text}\n\nTest run marker: {Guid.NewGuid()}";
         using var content = new MemoryStream(Encoding.UTF8.GetBytes(unique));
-        Document document = await Client.Documents.UploadAsync(content, fileName, title ?? UniqueTitle(), cancellationToken: Timeout);
-        _documentIds.Add(document.Id);
+        IDocumentsClient documents = (owner ?? Client).Documents;
+        Document document = await documents.UploadAsync(content, fileName, title ?? UniqueTitle(), cancellationToken: Timeout);
+        _documents.Add((documents, document.Id));
         return document;
     }
 
@@ -156,7 +161,9 @@ public abstract class IntegrationTest
         return conversation;
     }
 
-    protected void TrackDocument(Guid documentId) => _documentIds.Add(documentId);
+    /// <summary>Registers a document for cleanup; <paramref name="owner"/> is the client of the tenant that owns it.</summary>
+    protected void TrackDocument(Guid documentId, MentisClient? owner = null) =>
+        _documents.Add(((owner ?? Client).Documents, documentId));
 
     protected static string UniqueTitle() => $"sdk-it-{Guid.NewGuid():N}";
 

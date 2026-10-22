@@ -13,7 +13,7 @@ enum MessageRole {
   MESSAGE_ROLE_SYSTEM = 3;
 }
 
-// Phase 72, Teil A. UNSPECIFIED (the default/0 value) means "not computed
+// UNSPECIFIED (the default/0 value) means "not computed
 // for this message" - see ChatMessage.query_scope's own remarks.
 enum QueryScope {
   QUERY_SCOPE_UNSPECIFIED = 0;
@@ -40,7 +40,7 @@ message ChatMessage {
   google.protobuf.Timestamp created_at = 4;
   repeated Citation citations = 5;
   // Only populated on the message returned directly from SendMessage
-  // (Phase 72, Teil A) - QUERY_SCOPE_UNSPECIFIED on citations read back
+  //  - QUERY_SCOPE_UNSPECIFIED on citations read back
   // later via GetConversationById/ListMessages, the same "response-only"
   // caveat citations' document_title above already has.
   QueryScope query_scope = 6;
@@ -52,7 +52,7 @@ message Conversation {
   google.protobuf.Timestamp created_at = 3;
   repeated string linked_document_ids = 4;
   repeated ChatMessage messages = 5;
-  // Never unset (Phase 52) - there is no such thing as a global conversation.
+  // Never unset - there is no such thing as a global conversation.
   string tenant_id = 6;
   // Empty for tenant-global conversations (no single owner).
   optional string owner_user_id = 7;
@@ -63,7 +63,7 @@ message StartConversationRequest {
   // Optional. Any document that doesn't exist causes the whole call to
   // fail with NOT_FOUND - nothing gets created.
   repeated string initial_document_ids = 2;
-  // Phase 69: identifies the end user WITHIN the calling tenant, as
+  // Identifies the end user WITHIN the calling tenant, as
   // supplied by the upstream system (never verified here - see
   // Mentis.AI.Domain.Aggregates.Conversation.OwnerUserId). Omitting it
   // creates a TENANT-GLOBAL conversation, visible to every user of this
@@ -175,7 +175,7 @@ message ExportConversationResponse {
   string markdown = 1;
 }
 
-// Phase 73: opt-in, per-call connection to a remote MCP server (Streamable
+// Opt-in, per-call connection to a remote MCP server (Streamable
 // HTTP). Ephemeral - never stored or logged. See SendMessageRequest.mcp_server.
 message McpServer {
   // Absolute https URL. Its host must be on the deployment's admin-configured
@@ -192,18 +192,24 @@ message McpServer {
 message SendMessageRequest {
   string conversation_id = 1;
   string content = 2;
-  // Phase 68: optional model override. Unset means "use the deployment's
+  // Optional model override. Unset means "use the deployment's
   // configured default"; if set, must be either that same default or one
   // of the deployment's configured allow-listed models.
   optional string model = 3;
   optional string user_id = 4;
-  // Phase 70: credential for the calling tenant's configured OData data
+  // Credential for the calling tenant's configured OData data
   // source (see Tenant.ODataEndpointUrl/ODataAuthScheme), if one is set up.
   // Ephemeral - used only for this one call's outbound OData request, never
   // stored or logged anywhere. Ignored entirely when the tenant has no
   // OData endpoint configured.
+  //
+  // The OData lookup is opt-in PER CALL: it only runs when this field is
+  // present. Without it the call is answered without OData, even if the
+  // tenant has an endpoint configured. For an endpoint with auth scheme
+  // "None" there is no credential; send an empty string to opt in. For
+  // Bearer/Basic a blank value counts as not supplied.
   optional string odata_secret = 5;
-  // Phase 73. Unset means exactly the behavior before this field existed.
+  // Unset means exactly the behavior before this field existed.
   optional McpServer mcp_server = 6;
 }
 

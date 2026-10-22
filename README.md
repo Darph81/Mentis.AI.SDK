@@ -158,7 +158,7 @@ await foreach (var d in client.Documents.EnumerateAsync(scope: QueryScope.Global
     Console.WriteLine($"{d.Title} ({d.Status})");
 }
 
-// Semantic search across all ready documents (or a subset)
+// Semantic search across every document you can read (or a subset: documentIds: [id1, id2])
 var hits = await client.Documents.SearchAsync("travel expense policy", topK: 5);
 
 // Content, chunks, maintenance
@@ -193,8 +193,10 @@ string markdown = await alice.ExportMarkdownAsync(chat.Id);
 ```
 
 `SendMessageAsync` optionally accepts a `model` override (must be allowed by
-the Manager deployment) and an `odataSecret` for tenants with a configured
-OData data source.
+the Manager deployment) and an `odataSecret` to use the tenant's OData data
+source for that one message. OData is **opt-in per message**: pass the
+credential of a source with Bearer/Basic authentication, an empty string for a
+source without authentication, or `null` (the default) to skip it.
 
 #### MCP tools
 
@@ -263,7 +265,7 @@ catch (MentisException ex) when (ex.ValidationErrors.Count > 0)
 |----------------------|------------------------------------------------------------|
 | `InvalidArgument`    | Validation failed - see `ValidationErrors`                 |
 | `NotFound`           | Resource does not exist or belongs to another tenant       |
-| `FailedPrecondition` | Conflict with the current state                            |
+| `FailedPrecondition` | Conflict with the current state, e.g. duplicate upload or a change by another request in the meantime (`ErrorCode` `*.ConcurrentModification`: reload and retry) |
 | `Unauthenticated`    | Missing or invalid tenant credentials                      |
 | `PermissionDenied`   | Not allowed, e.g. modifying a global document              |
 | `Internal`           | Server-side failure (e.g. the LLM provider failed)         |

@@ -265,7 +265,9 @@ internal sealed class ConversationsClient : IConversationsClient
             request.Model = model;
         }
 
-        if (!string.IsNullOrEmpty(odataSecret))
+        // The Manager only queries the tenant's OData source when the field is present, so an empty string
+        // (a source without authentication) must be sent; only null leaves it out.
+        if (odataSecret is not null)
         {
             request.OdataSecret = odataSecret;
         }

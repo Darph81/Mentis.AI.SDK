@@ -570,10 +570,28 @@ public class ConversationsClientTests
         _grpc.SendMessageAsync(Arg.Do<Proto.SendMessageRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(GrpcTestCalls.Success(new Proto.SendMessageResponse { Message = new Proto.ChatMessage { Id = TestIds.Message1.ToString() } }));
 
-        await _client.SendMessageAsync(TestIds.Conversation1, "Hi", model: "  ", odataSecret: "");
+        await _client.SendMessageAsync(TestIds.Conversation1, "Hi", model: "  ");
 
         sent!.HasModel.ShouldBeFalse();
         sent.HasOdataSecret.ShouldBeFalse();
+    }
+
+    // The Manager only queries the OData source when the field is present: null leaves it out, an empty string
+    // opts in for a source without authentication, a credential is passed through.
+    [TestCase(null, false, "")]
+    [TestCase("", true, "")]
+    [TestCase("   ", true, "   ")]
+    [TestCase("secret-value", true, "secret-value")]
+    public async Task SendMessageAsync_ODataSecret_IsSentWheneverItIsNotNull(string? odataSecret, bool expectSent, string expectedValue)
+    {
+        Proto.SendMessageRequest? sent = null;
+        _grpc.SendMessageAsync(Arg.Do<Proto.SendMessageRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.SendMessageResponse { Message = new Proto.ChatMessage { Id = TestIds.Message1.ToString() } }));
+
+        await _client.SendMessageAsync(TestIds.Conversation1, "Hi", odataSecret: odataSecret);
+
+        sent!.HasOdataSecret.ShouldBe(expectSent);
+        sent.OdataSecret.ShouldBe(expectedValue);
     }
 
     [Test]

@@ -504,6 +504,35 @@ public class DocumentsClientTests
     }
 
     [Test]
+    public async Task SearchAsync_EmptyDocumentList_ThrowsInsteadOfSearchingEverything()
+    {
+        // On the wire an empty list means "search all documents" - that must never happen by accident.
+        ArgumentException ex = await Should.ThrowAsync<ArgumentException>(() => _client.SearchAsync("policy", documentIds: []));
+
+        ex.ParamName.ShouldBe("documentIds");
+        _grpc.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task SearchAsync_LazyDocumentSequence_IsEnumeratedOnce()
+    {
+        Proto.SearchDocumentsRequest? sent = null;
+        _grpc.SearchDocumentsAsync(Arg.Do<Proto.SearchDocumentsRequest>(r => sent = r), Arg.Any<Metadata>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(GrpcTestCalls.Success(new Proto.SearchDocumentsResponse()));
+        int enumerations = 0;
+        IEnumerable<Guid> Ids()
+        {
+            enumerations++;
+            yield return TestIds.Document1;
+        }
+
+        await _client.SearchAsync("policy", Ids());
+
+        enumerations.ShouldBe(1);
+        sent!.DocumentIds.ShouldBe([TestIds.Document1.ToString()]);
+    }
+
+    [Test]
     public async Task SearchAsync_BlankQuery_Throws()
     {
         await Should.ThrowAsync<ArgumentException>(() => _client.SearchAsync("  "));

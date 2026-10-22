@@ -98,11 +98,16 @@ public interface IDocumentsClient
     /// <summary>Deletes several documents in one call.</summary>
     Task DeleteManyAsync(IEnumerable<Guid> documentIds, CancellationToken cancellationToken = default);
 
-    /// <summary>Semantic search over the chunks of ready documents.</summary>
+    /// <summary>Semantic search over the chunks of the documents the tenant can read.</summary>
     /// <param name="query">The search text.</param>
-    /// <param name="documentIds">Restrict the search to these documents; all ready documents when omitted.</param>
+    /// <param name="documentIds">
+    /// Restrict the search to these documents; <see langword="null"/> searches every document the tenant can read
+    /// (its own and the global ones). Ids that do not exist or that the tenant may not read are ignored - if none
+    /// remain, the result is empty. An empty list is rejected rather than treated as "everything".
+    /// </param>
     /// <param name="topK">Maximum number of results; the server defaults to 5.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <exception cref="ArgumentException"><paramref name="documentIds"/> is empty.</exception>
     Task<IReadOnlyList<DocumentSearchResult>> SearchAsync(
         string query,
         IEnumerable<Guid>? documentIds = null,
