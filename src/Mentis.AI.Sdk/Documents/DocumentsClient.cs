@@ -220,7 +220,16 @@ internal sealed class DocumentsClient : IDocumentsClient
         var request = new Proto.SearchDocumentsRequest { QueryText = query, TopK = topK ?? 0 };
         if (documentIds is not null)
         {
-            request.DocumentIds.AddRange(Ids.ToWire(documentIds));
+            List<string> ids = [.. Ids.ToWire(documentIds)];
+
+            // On the wire an empty list means "search everything", so an empty collection (say, a selection that
+            // turned out to be empty) would silently widen the search instead of narrowing it.
+            if (ids.Count == 0)
+            {
+                throw new ArgumentException("The list is empty. Pass null to search all documents.", nameof(documentIds));
+            }
+
+            request.DocumentIds.AddRange(ids);
         }
 
         Proto.SearchDocumentsResponse response = await RpcInvoker.InvokeAsync(

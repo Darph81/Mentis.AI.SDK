@@ -322,7 +322,13 @@ as well** (all four list RPCs fall back to page 1 + default size) - so
 sends the page size the server applied to page 1 explicitly for every
 following page (before this fix it returned page 1 over and over, i.e.
 duplicates instead of all items, once there were more than 20). Page size is
-limited to 1-100 by the server's validators. Order is the Manager's (verified): documents, conversations and
+limited to 1-100 by the server's validators, and since the Manager's SQL
+paging (2026-10-22) a page may start at most **100 000 entries deep**: a
+deeper `pageNumber` is answered with `InvalidArgument` (validation error on
+`pagenumber`: "narrow the filters to reach later entries"), so `EnumerateAsync`
+cannot walk past ~100 000 items - use filters. Lists have a stable order
+(`CreatedAt` newest first, then id), and `textContains`/`titleContains` are
+umlaut-safe case-insensitive substring matches. Order is the Manager's (verified): documents, conversations and
 messages **newest first**; chunks in document order (`SequenceNumber`);
 `Conversation.Messages` (from `GetAsync`) is chronological. Manager versions
 before 2026-10-04 returned a conversation's messages in database order (EF
@@ -461,6 +467,21 @@ Update this table in the same change whenever an RPC is added or renamed.
   `Status`). No timeout parameter - callers pass a timed token.
 - **Global documents** (`TenantId == null`) are readable by every tenant but
   only modifiable by admin - rename/delete on them fails for tenant tokens.
+- **`SearchAsync` scope** (Manager fix 2026-10-21): `documentIds = null` searches
+  every document the tenant can read (own + global). Ids that do not exist or
+  that the tenant may not read are dropped; if none remain the result is
+  **empty**. On the wire an empty list means "search everything", which is why
+  `SearchAsync` rejects an empty collection with `ArgumentException` instead of
+  silently widening the search. (The same fix closed a leak where foreign or
+  made-up ids searched other tenants' chunks.)
+- **Concurrent modification** (Manager 2026-10-21, optimistic versioning):
+  rename, link, unlink and retry-processing on a document/conversation that
+  another request changed in the meantime fail with `FailedPrecondition` and
+  `ErrorCode` `Document.ConcurrentModification` /
+  `Conversation.ConcurrentModification` ("load it again and retry"). Nothing
+  was written, so re-reading and repeating is safe. `SendMessage` and document
+  processing retry internally and do not surface this. The SDK does not retry
+  it for the caller (the caller decides what to re-apply).
 - **Citations**: `DocumentTitle` is only populated on messages returned
   directly by `SendMessage`; it is empty when read back via
   `GetConversationById`/`ListMessages`. Document this on the model.
@@ -468,6 +489,15 @@ Update this table in the same change whenever an RPC is added or renamed.
   or an allow-listed model, otherwise `InvalidArgument`.
 - **`odata_secret`** is an ephemeral per-call credential for the tenant's
   OData source; never stored/logged by the server - and never by the SDK.
+  Since Manager 2026-10-12 the OData lookup is **opt-in per message**: it only
+  runs when the request carries the field. For an endpoint with auth scheme
+  `None` the *presence* of the field is the signal, so an **empty string must
+  be sent** (`odataSecret: ""`); for Bearer/Basic a blank value counts as not
+  supplied. The SDK therefore sends the field whenever `odataSecret` is not
+  `null` (before 2026-10-22 it skipped empty strings, which would have switched
+  OData off for sources without authentication). Previously a tenant with an
+  endpoint triggered an OData request for every chat, and a failing one took
+  the chat down.
 - `StartConversation` with any unknown `initial_document_ids` fails the
   whole call with `NotFound`; nothing is created.
 - Monthly token limits: `TenantUsage.MonthlyTokenLimit == null` means
@@ -504,10 +534,14 @@ Verified against a running Manager (2026-09-28):
   document/conversation ids with `Guid.Parse`; a malformed id surfaces as
   `Internal: "An unexpected error occurred."` - no useful message. Hence
   `Guid` everywhere in the SDK (see "Every id is a `Guid`").
-- **Duplicate content is rejected across all tenants**: uploading bytes
-  identical to any existing document fails with `FailedPrecondition`
-  / `Document.DuplicateContent` (message contains the existing id).
-  Tests must make every upload's content unique.
+- **Duplicate content is rejected within the tenant's reach**: uploading bytes
+  identical to a document the tenant can read (its own or a global one) fails
+  with `FailedPrecondition` / `Document.DuplicateContent` (message contains the
+  existing id). Until the Manager's cross-tenant fix of 2026-10-21 the check
+  spanned *all* tenants and so disclosed another tenant's document id and
+  title; now identical bytes in two different tenants are fine
+  (`TenantIsolationTests`). Within one tenant, tests must still make every
+  upload's content unique.
 - **Global documents appear in tenant listings** (`ListAsync`,
   `EnumerateAsync`, search) with `TenantId == null`. Deleting them as a
   tenant fails with `NotFound`. Never "clean up" by deleting everything a
@@ -597,8 +631,22 @@ Verified against a running Manager (2026-09-28):
     must point at `https://services.odata.org/V3/Northwind/Northwind.svc/`
     with auth scheme `None`. Verified 2026-10-09 that without that setting the
     Manager never fetches the endpoint (no outbound request in its log) and the
-    test fails - a missing setting, not an SDK bug. The README lists all
-    infrastructure the integration tests need.
+    test fails - a missing setting, not an SDK bug. The tests cover the
+    per-message opt-in: `odataSecret: ""` and a non-empty value must make the
+    Manager fetch the source (they need its outbound HTTPS), while a call
+    **without** `odataSecret` must succeed even if the source is unreachable
+    (`SendMessage_WithoutODataSecret_DoesNotNeedTheODataSource`, the regression
+    test for the old "every chat fails" behavior). Verified 2026-10-22 against
+    the Manager's log: `null` -> no outbound request, `""` -> `GET
+    https://services.odata.org/...` right after the call starts.
+    **Environment note (2026-10-22):** on the owner's machine the Manager
+    container cannot open outbound TCP 443 (port 80 and DNS work, MTU is fine,
+    not an `internal` network - a host firewall/forwarding rule), so the two
+    with-secret tests fail after ~100 s with `OData.RequestFailed` and a hint;
+    check with `docker exec <container> curl -sS -m 15 -o /dev/null -w
+    '%{http_code}' https://services.odata.org/`. The failure is the
+    environment, not the SDK. The README lists all infrastructure the
+    integration tests need.
   - When appending to `.env` make sure the file ends with a newline first -
     otherwise the new line is glued to the last value and corrupts a key.
 

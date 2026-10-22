@@ -16,10 +16,12 @@ First public release.
   RPC of the Mentis.AI Manager, async-only, with a `CancellationToken` on every call.
 - Documents: upload (from a file or a stream), get, list with filters
   (`status`, `titleContains`, `textContains`, `scope`), paging and `EnumerateAsync`,
-  rename, delete (single and bulk), semantic search, content download, chunks,
+  rename, delete (single and bulk), semantic search (`documentIds: null` searches every
+  document the tenant can read; an empty list is rejected), content download, chunks,
   retry processing and `WaitUntilProcessedAsync`.
 - Conversations: start, get, list, rename, delete, link and unlink documents,
-  send a message (with optional `model` override and `odataSecret`), list messages,
+  send a message (with optional `model` override and `odataSecret` - OData is opt-in per
+  message: a credential, or an empty string for a source without authentication), list messages,
   export as Markdown, and `ForUser(userId)` for conversations owned by one end user.
 - MCP: `SendMessageAsync(..., mcpServer: new McpServer { ... })` lets the model call
   the tools of a remote MCP server for one message (Manager Phase 73/74).

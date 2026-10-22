@@ -158,7 +158,7 @@ await foreach (var d in client.Documents.EnumerateAsync(scope: QueryScope.Global
     Console.WriteLine($"{d.Title} ({d.Status})");
 }
 
-// Semantic search across all ready documents (or a subset)
+// Semantic search across every document you can read (or a subset: documentIds: [id1, id2])
 var hits = await client.Documents.SearchAsync("travel expense policy", topK: 5);
 
 // Content, chunks, maintenance
@@ -193,8 +193,10 @@ string markdown = await alice.ExportMarkdownAsync(chat.Id);
 ```
 
 `SendMessageAsync` optionally accepts a `model` override (must be allowed by
-the Manager deployment) and an `odataSecret` for tenants with a configured
-OData data source.
+the Manager deployment) and an `odataSecret` to use the tenant's OData data
+source for that one message. OData is **opt-in per message**: pass the
+credential of a source with Bearer/Basic authentication, an empty string for a
+source without authentication, or `null` (the default) to skip it.
 
 #### MCP tools
 
@@ -263,7 +265,7 @@ catch (MentisException ex) when (ex.ValidationErrors.Count > 0)
 |----------------------|------------------------------------------------------------|
 | `InvalidArgument`    | Validation failed - see `ValidationErrors`                 |
 | `NotFound`           | Resource does not exist or belongs to another tenant       |
-| `FailedPrecondition` | Conflict with the current state                            |
+| `FailedPrecondition` | Conflict with the current state, e.g. duplicate upload or a change by another request in the meantime (`ErrorCode` `*.ConcurrentModification`: reload and retry) |
 | `Unauthenticated`    | Missing or invalid tenant credentials                      |
 | `PermissionDenied`   | Not allowed, e.g. modifying a global document              |
 | `Internal`           | Server-side failure (e.g. the LLM provider failed)         |
@@ -363,11 +365,12 @@ integration tests are skipped (they never run in CI).
 | A **dedicated test tenant** (`MENTIS_API_KEY`) | all tests | no monthly token limit; the tests delete what they create, but never use a production tenant |
 | A **second tenant with a monthly token limit of `0`** (`MENTIS_LIMIT_API_KEY`) | `TokenLimitTests` | optional; verifies the limit error without costing tokens |
 | An LLM available to the Manager, e.g. `ollama pull llama3.2:1b` | category `Llm` (`ChatTests`, `ODataTests`) | slow, consumes tokens; ignored when the test tenant's token limit is used up |
-| OData source on the test tenant, set **in the Manager's admin panel** (SDK has no admin API) | `ODataTests` (category `Llm`) | URL `https://services.odata.org/V3/Northwind/Northwind.svc/`, auth scheme `None`; the Manager fetches exactly this URL (the service document), and needs outbound HTTPS to `services.odata.org`. Opt in with `MENTIS_ODATA_NORTHWIND=1` |
+| OData source on the test tenant, set **in the Manager's admin panel** (SDK has no admin API) | `ODataTests` (category `Llm`) | URL `https://services.odata.org/V3/Northwind/Northwind.svc/`, auth scheme `None`; the Manager fetches exactly this URL (the service document), and needs outbound HTTPS to `services.odata.org` **from inside its container** (check with `docker exec <container> curl -sS https://services.odata.org/`). Opt in with `MENTIS_ODATA_NORTHWIND=1` |
 
-`ODataTests` only proves the transport (a call with `odataSecret` succeeds, i.e. the
-Manager could fetch the source); it does not assert that the answer uses the data,
-because the small default model ignores injected context too often.
+`ODataTests` prove the opt-in and the transport (a call with `odataSecret` succeeds,
+i.e. the Manager could fetch the source; a call without it does not need the source);
+they do not assert that the answer uses the data, because the small default model
+ignores injected context too often.
 
 `McpTests` needs no MCP server: it only checks that a host that is not on the
 tenant's allow-list is rejected (`Mcp.ServerNotAllowed`). The success path of

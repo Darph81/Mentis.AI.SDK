@@ -101,8 +101,11 @@ public interface IConversationsClient
     /// Optional model override. Must be the deployment's default model or one of its allow-listed models.
     /// </param>
     /// <param name="odataSecret">
-    /// Credential for the tenant's configured OData data source, used for this call only. Ignored when the
-    /// tenant has no OData source. Never stored or logged.
+    /// Opts in to the tenant's configured OData data source for this one message - the Manager only queries the
+    /// source when this is set. For a source with Bearer or Basic authentication pass its credential (a blank value
+    /// counts as not set); for a source without authentication pass an empty string. <see langword="null"/> (the
+    /// default) does not use OData. Ignored when the tenant has no OData source. Used for this call only, never
+    /// stored or logged.
     /// </param>
     /// <param name="mcpServer">
     /// Optional remote MCP server whose tools the model may call while answering this one message. See

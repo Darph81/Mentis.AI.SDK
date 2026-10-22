@@ -130,6 +130,28 @@ public class DocumentTests : IntegrationTest
     }
 
     [Test]
+    public async Task Search_WithOnlyUnknownDocumentIds_ReturnsNothing()
+    {
+        // Ids that do not exist (or may not be read) are dropped; if none remain the result is empty - the search
+        // must not fall back to "everything".
+        IReadOnlyList<DocumentSearchResult> results = await Client.Documents.SearchAsync(
+            "anything at all", [Guid.NewGuid(), Guid.NewGuid()], cancellationToken: Timeout);
+
+        results.ShouldBeEmpty();
+    }
+
+    [Test]
+    public async Task List_BeyondTheOffsetLimit_IsRejectedAsInvalidArgument()
+    {
+        // The Manager caps how deep a page may start (100 000 entries) and says so with a validation error.
+        MentisException ex = await Should.ThrowAsync<MentisException>(
+            () => Client.Documents.ListAsync(pageNumber: 2000, pageSize: 100, cancellationToken: Timeout));
+
+        ex.StatusCode.ShouldBe(MentisStatusCode.InvalidArgument);
+        ex.ValidationErrors.ShouldNotBeEmpty();
+    }
+
+    [Test]
     public async Task UploadAboveClientSendLimit_IsRejectedBeforeReachingServer()
     {
         await using var limited = new MentisClient(new MentisClientOptions
