@@ -103,10 +103,10 @@ jobs:
     steps:
       - name: Check configuration
         env:
-          NUGET_USER: ${{ vars.NUGET_USER }}
+          NUGET_USER: ${{ secrets.NUGET_USER }}
         run: |
           if [ -z "$NUGET_USER" ]; then
-            echo "::error::Repository variable NUGET_USER (the nuget.org profile name) is not set."
+            echo "::error::Repository secret NUGET_USER (the nuget.org profile name) is not set."
             exit 1
           fi
 
@@ -121,12 +121,12 @@ jobs:
 
       # Trusted publishing: no API key is stored. The policy on nuget.org must name this repository,
       # the workflow file "release.yml" and the environment "production". NUGET_USER (repository
-      # variable) is the nuget.org profile name.
+      # secret) is the nuget.org profile name.
       - name: NuGet login (trusted publishing)
         id: login
         uses: NuGet/login@v1
         with:
-          user: ${{ vars.NUGET_USER }}
+          user: ${{ secrets.NUGET_USER }}
 
       # The .snupkg next to the .nupkg is pushed automatically.
       - name: Push to nuget.org

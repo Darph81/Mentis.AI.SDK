@@ -695,9 +695,12 @@ permanent (they can only be unlisted), so a release is deliberate:
   is rejected. On 2026-10-24 the environment had neither (no reviewer, empty
   pattern list) - read it back with `GET /repos/Darph81/Mentis.AI.SDK/environments/production`
   and `.../deployment-branch-policies` before the first tag.
-- Repository **variable `NUGET_USER`** (Settings -> Secrets and variables ->
-  Actions -> Variables) = the nuget.org *profile name*. It is not a secret.
-  The publish job fails fast with a clear message when it is missing.
+- Repository **secret `NUGET_USER`** (Settings -> Secrets and variables ->
+  Actions -> Secrets) = the nuget.org *profile name*. The profile name is not
+  really secret; it is a secret because NuGet's own docs use `secrets.NUGET_USER`
+  and that is how it was created. The workflow reads `secrets.NUGET_USER` - a
+  *variable* of the same name would stay unseen. The publish job fails fast with
+  a clear message when it is missing.
 - nuget.org: Account -> *Trusted Publishing* policy for owner
   `darph81`, repository `Darph81/Mentis.AI.SDK`, workflow file `release.yml`,
   environment `production` (all four must match, the environment is part of
@@ -708,8 +711,11 @@ permanent (they can only be unlisted), so a release is deliberate:
   ${{ secrets.NUGET_API_KEY }}` for that release only.
 - Optional: a tag ruleset for `v*` (only admins may create tags) as a second
   line of defence next to the environment approval.
-- The repository variables and secrets are not readable with the owner's
-  personal access token (403); the environment settings above are.
+- Check the setup with the GitHub CLI: `gh api repos/Darph81/Mentis.AI.SDK/environments/production`
+  (reviewers, branch/tag policies), `.../deployment-branch-policies`, and
+  `gh api repos/Darph81/Mentis.AI.SDK/actions/secrets` (names only). The
+  owner's personal access token in the git credential store cannot read
+  these (403) and cannot create pull requests; `gh` can.
 
 ## Roadmap - open work
 
