@@ -8,6 +8,8 @@ While the major version is `0`, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-24
+
 First public release.
 
 ### Added
@@ -49,4 +51,5 @@ First public release.
   default 30 s), so long chat calls survive idle-killing firewalls and load balancers.
 - Source Link and symbol package (`.snupkg`) for debugging into the SDK.
 
-[Unreleased]: https://github.com/Darph81/Mentis.AI.SDK/commits/main
+[Unreleased]: https://github.com/Darph81/Mentis.AI.SDK/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Darph81/Mentis.AI.SDK/releases/tag/v0.1.0
