@@ -2,7 +2,7 @@ using Google.Protobuf.WellKnownTypes;
 
 using Mentis.AI.Sdk.Internal;
 
-using Proto = Mentis.AI.Sdk.Internal.Grpc;
+using Proto = Mentis.AI.Contracts.V1;
 
 namespace Mentis.AI.Sdk.Tests;
 

@@ -14,10 +14,12 @@
     Directory.Packages.props. No prerelease packages.
   -->
 
-  <ItemGroup Label="gRPC (Apache-2.0 / BSD-3-Clause)">
+  <ItemGroup Label="gRPC (Apache-2.0)">
     <PackageVersion Include="Grpc.Net.Client" Version="2.80.0" />
-    <PackageVersion Include="Grpc.Tools" Version="2.80.0" />
-    <PackageVersion Include="Google.Protobuf" Version="3.31.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="The Manager's gRPC contract: generated messages and client stubs (MIT, same author). Brings Google.Protobuf and Grpc.Core.Api.">
+    <PackageVersion Include="Mentis.AI.Contracts" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Logging abstractions (MIT) - only for MentisClientOptions.LoggerFactory; already a dependency of Grpc.Net.Client">

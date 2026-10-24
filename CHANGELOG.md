@@ -26,6 +26,9 @@ First public release.
 - MCP: `SendMessageAsync(..., mcpServer: new McpServer { ... })` lets the model call
   the tools of a remote MCP server for one message (Manager Phase 73/74).
 - Billing: current usage and monthly usage history of the tenant.
+- Built on the Manager's `Mentis.AI.Contracts` NuGet package for the gRPC messages and clients.
+  It is an implementation detail: the SDK's public API uses its own models and its dependency
+  does not expose the contract types to your code.
 - `QueryScope` on answers (`ChatMessage.QueryScope`) and as a document list filter.
 - `MentisException` for every server error: `StatusCode`, `ErrorCode` and per-field
   `ValidationErrors`; `StatusCode` is the SDK's own `MentisStatusCode` enum, so

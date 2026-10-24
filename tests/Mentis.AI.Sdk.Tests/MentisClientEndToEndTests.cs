@@ -7,7 +7,7 @@ using Google.Protobuf;
 using Grpc.Core;
 using Grpc.Net.Client;
 
-using Proto = Mentis.AI.Sdk.Internal.Grpc;
+using Proto = Mentis.AI.Contracts.V1;
 
 namespace Mentis.AI.Sdk.Tests;
 

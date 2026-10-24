@@ -69,7 +69,8 @@ secrets before going public (none found).
 ## Tech stack
 
 - .NET 10 SDK (`global.json` pins `10.0.100`, `rollForward: latestFeature`)
-- `Grpc.Net.Client`, `Google.Protobuf`, `Grpc.Tools` (build-time only)
+- `Grpc.Net.Client` and `Mentis.AI.Contracts` (the Manager's generated gRPC messages and
+  client stubs; brings `Google.Protobuf` and `Grpc.Core.Api`)
 - `Microsoft.Extensions.DependencyInjection.Abstractions` +
   `Microsoft.Extensions.Options` only for the optional `AddMentisClient()`
   registration helper, and `Microsoft.Extensions.Logging.Abstractions` only for
@@ -91,9 +92,7 @@ global.json
 .github/workflows/ci.yml         CI: build, unit tests, pack (required check on PRs)
 .github/workflows/release.yml    release: tag v* -> test, pack, publish to nuget.org
 CHANGELOG.md                     Keep a Changelog; one section per released version
-scripts/protos.sh                check/sync the proto copies against the Manager
 src/Mentis.AI.Sdk/
-  Protos/                        copies of the Manager's non-admin .proto files
   IMentisClient.cs, MentisClient.cs   entry point: .Documents / .Conversations / .Billing
   MentisClientOptions.cs
   Documents/                     IDocumentsClient (public) + DocumentsClient (internal) + models
@@ -109,16 +108,23 @@ samples/Mentis.AI.Sdk.Sample/    minimal console app: upload → chat → billin
 
 Build settings: only `Mentis.AI.Sdk` is packable (`IsPackable` defaults to
 false in `Directory.Build.props`). Warnings are errors in Release. The
-generated gRPC clients are internal and exposed to the test project (and to
-`DynamicProxyGenAssembly2` for NSubstitute) via `InternalsVisibleTo`.
+SDK's internals are exposed to the unit-test project via `InternalsVisibleTo`
+(the generated clients are public in the Contracts package, so NSubstitute
+needs no special access).
 
 ## Key design decisions
 
 ### Generated proto types stay internal
 
-Protos are compiled with `GrpcServices="Client"` and `Access="Internal"`.
-The public API exposes **SDK-owned immutable `record` types and enums**,
-mapped in `Internal/`. Reasons:
+The types of `Mentis.AI.Contracts.V1` are **public in their own package**, but
+the SDK keeps them out of its public API and out of its consumers' compile
+scope: the package reference carries `PrivateAssets="compile"`, so the SDK's
+nuspec lists `Mentis.AI.Contracts` without compile assets (runtime flows, so
+the SDK works). Verified with a consumer project: it restores and runs, and
+`Mentis.AI.Contracts.V1.*` in its code does not compile (`CS0234`). The
+unit-test project therefore references the package explicitly. The public
+API exposes **SDK-owned immutable `record` types and enums**, mapped in
+`Internal/`. Reasons:
 
 - `google.protobuf.Timestamp` → `DateTimeOffset`, proto `optional` →
   nullable (`string?`, `DateTimeOffset?`), `repeated` → `IReadOnlyList<T>`,
@@ -147,40 +153,35 @@ public class; the service client implementations are `internal sealed`.
   `IMentisClientFactory` (with an app-implemented credential provider) is a
   possible later addition - not built yet, don't add it speculatively.
 
-### Proto files are copied, not linked
+### The contract comes from NuGet (`Mentis.AI.Contracts`)
 
-`src/Mentis.AI.Sdk/Protos/` holds **copies** of
-`../SmartAI.Manager/src/Mentis.AI.Contracts/Protos/{document,conversation,billing}.proto`.
-The SDK must build standalone (CI, other machines), so no relative link into
-the Manager tree. `scripts/protos.sh` keeps the copies honest:
+The generated gRPC messages and client stubs are not built here: the SDK
+references the **`Mentis.AI.Contracts`** NuGet package, which the Manager
+repository publishes from its `.proto` files (`Mentis.AI.Contracts.V1`
+namespace, wire package `mentis.ai.v1`). The package version is pinned in
+`Directory.Packages.props`; it brings `Google.Protobuf` and `Grpc.Core.Api`,
+which is why neither is referenced directly any more (nor `Grpc.Tools`).
 
-```bash
-scripts/protos.sh check --ref origin/main   # exit 1 + diff if the copies differ
-scripts/protos.sh sync  --ref origin/main   # overwrite the copies
-```
-
-- `--ref` reads the protos from that commit of the Manager repo. **Compare
-  against `origin/main`**, not the Manager's working tree: without `--ref`
-  the script uses whatever branch happens to be checked out there (often a
-  feature branch that is ahead of what is released). Run `git fetch` in the
-  Manager first.
-- The only allowed difference is the `csharp_namespace` line; `admin.proto`
-  is ignored. A new proto file in the Manager is reported as `MISSING`, a
-  copy without counterpart as `ORPHAN`.
-- The check is **local only**: the SDK repository is public but the Manager
-  repository is private, so CI has no access to the Manager. Run it before
-  every release and whenever the Manager's protos changed.
-
-When the check reports a difference:
-
-1. `scripts/protos.sh sync --ref origin/main` (never copy `admin.proto`).
-2. Build - the compiler will point at every mapping that needs updating.
-3. Update models, clients, the coverage table below and the README.
-
-Keep `package mentis.ai.v1;` unchanged - it defines the wire service names
-(`mentis.ai.v1.DocumentService`, ...). Changing `csharp_namespace` in the
-copies is allowed (use `Mentis.AI.Sdk.Internal.Grpc`) since it only affects
-generated C#.
+- Switched on 2026-10-24. The protos inside the `1.0.0` package (built from
+  Manager commit `1d26e50`) were identical to the SDK's former copies, so
+  nothing changed on the wire. The package replaced the proto copies under
+  `src/Mentis.AI.Sdk/Protos/`, `scripts/protos.sh` and the manual drift check -
+  the package version *is* the contract version now.
+- The package also contains `admin.proto` and the server stubs. The SDK never
+  touches them (`AdminService` stays out of scope).
+- **Updating the contract:** bump `Mentis.AI.Contracts` in
+  `Directory.Packages.props`, build (the compiler points at every mapping that
+  needs updating), then adapt models, clients, the coverage table below, the
+  README and `CHANGELOG.md`, and run the integration tests against a Manager
+  that serves the new contract. One PR per bump.
+- The SDK can only use what a **published** Contracts version contains. A
+  Manager change is invisible to the SDK until the package is published and
+  bumped. Unknown fields sent by a newer Manager are ignored by Protobuf, and
+  unknown enum values map to `Unknown` (see "Generated proto types stay
+  internal"), so an SDK built on an older contract keeps working against a
+  newer Manager - it just cannot use the new features.
+- Keep `package mentis.ai.v1;` in mind when reading wire logs: it defines the
+  service names (`mentis.ai.v1.DocumentService`, ...).
 
 ### Authentication
 
@@ -669,7 +670,8 @@ permanent (they can only be unlisted), so a release is deliberate:
    `CHANGELOG.md` into a new `## [x.y.z] - date` section (and add the compare
    links at the bottom). Merge it (CI must be green).
 2. Run the integration tests locally against a Manager (they never run in CI).
-   Run `scripts/protos.sh check --ref origin/main` (Manager protos unchanged?).
+   Check nuget.org for a newer `Mentis.AI.Contracts`; if there is one, bump and
+   adapt it in its own PR first (see "The contract comes from NuGet").
 3. Tag the merge commit on `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. `release.yml` verifies tag == `<Version>`, a CHANGELOG section exists and the
    commit is on `main`; builds, tests and packs once; then the `publish` job
@@ -715,9 +717,9 @@ into the sections above. Keep the order unless the owner says otherwise.
   - [x] Ids are `Guid` throughout the public API (owner's decision).
   - [x] Transient `NotFound` during processing: fixed in the Manager
     (transactional `UpdateAsync`), **no SDK workaround** (owner's decision).
-- [x] **2. Proto drift check.** `scripts/protos.sh check|sync` (see "Proto
-  files are copied, not linked"). Local only - CI cannot reach the private
-  Manager repo.
+- [x] **2. Proto drift check** - superseded on 2026-10-24 by the
+  `Mentis.AI.Contracts` NuGet package (see "The contract comes from NuGet");
+  `scripts/protos.sh` and the proto copies were removed.
 - [x] **3. CI (GitHub Actions).** `.github/workflows/ci.yml`: build
   (Release, warnings are errors), `dotnet test` (integration tests ignore
   themselves without a Manager) and `dotnet pack` on every PR and push to
