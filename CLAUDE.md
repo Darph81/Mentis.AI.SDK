@@ -677,30 +677,39 @@ permanent (they can only be unlisted), so a release is deliberate:
 3. Tag the merge commit on `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. `release.yml` verifies tag == `<Version>`, a CHANGELOG section exists and the
    commit is on `main`; builds, tests and packs once; then the `publish` job
-   **waits for approval** in the `nuget` environment, pushes that exact
+   **waits for approval** in the `production` environment, pushes that exact
    package (+ symbols) to nuget.org and creates the GitHub release with the
    CHANGELOG section as notes. `vX.Y.Z-beta.1`-style tags are marked prerelease.
 5. A failed run can be re-run; `--skip-duplicate` makes the push idempotent.
    *Actions -> Release -> Run workflow* on a branch builds, tests and packs
    without publishing - use it to try changes to the workflow itself.
 
-**One-time setup (owner, still not done as of 2026-10-09 - the GitHub API lists
-no environments and nuget.org has no `Mentis.AI.Sdk` yet):**
+**One-time setup (owner; state as of 2026-10-24):**
 
-- GitHub: Settings -> Environments -> New environment `nuget` -> *Required
-  reviewers*: the owner. **Do this before the first tag** - a missing
-  environment is created implicitly *without* protection.
-- nuget.org: Account -> *Trusted Publishing* -> add a policy for owner
+- GitHub environment **`production`** (exists). It is the approval gate and
+  must have: *Required reviewers* = the owner (leave "Prevent self-review"
+  **off** - the owner is the only reviewer and also the one who pushes the tag)
+  and, under *Deployment branches and tags*, the tag rule `v*`. Without a
+  reviewer the publish job does **not** wait for approval; with "Selected
+  branches and tags" but no pattern, **no ref may deploy** and the publish job
+  is rejected. On 2026-10-24 the environment had neither (no reviewer, empty
+  pattern list) - read it back with `GET /repos/Darph81/Mentis.AI.SDK/environments/production`
+  and `.../deployment-branch-policies` before the first tag.
+- Repository **variable `NUGET_USER`** (Settings -> Secrets and variables ->
+  Actions -> Variables) = the nuget.org *profile name*. It is not a secret.
+  The publish job fails fast with a clear message when it is missing.
+- nuget.org: Account -> *Trusted Publishing* policy for owner
   `darph81`, repository `Darph81/Mentis.AI.SDK`, workflow file `release.yml`,
-  environment `nuget`. No API key is stored anywhere. If nuget.org does not
+  environment `production` (all four must match, the environment is part of
+  the OIDC token). No API key is stored anywhere. If nuget.org does not
   allow a trusted-publishing policy for a package id that does not exist yet,
   create a package-scoped API key for the first push instead, store it as the
   secret `NUGET_API_KEY` and replace the login step by `--api-key
   ${{ secrets.NUGET_API_KEY }}` for that release only.
 - Optional: a tag ruleset for `v*` (only admins may create tags) as a second
   line of defence next to the environment approval.
-- The `user:` in the NuGet login step is the nuget.org **profile name**
-  (`darph81`) - correct it in `release.yml` if it differs.
+- The repository variables and secrets are not readable with the owner's
+  personal access token (403); the environment settings above are.
 
 ## Roadmap - open work
 

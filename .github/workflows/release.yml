@@ -6,7 +6,7 @@ name: Release
 #   1. The tag must match <Version> in the project file and have a CHANGELOG.md section.
 #   2. The tagged commit must be on main (so it went through the PR rules and CI).
 #   3. The package is built and tested once; exactly that package is published.
-#   4. The publish job waits for approval in the "nuget" environment.
+#   4. The publish job waits for approval in the "production" environment.
 #
 # Run manually (Actions -> Release -> Run workflow) to build, test and pack without publishing.
 
@@ -92,13 +92,24 @@ jobs:
     needs: build
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
-    # Requires approval: Settings -> Environments -> nuget -> Required reviewers.
-    environment: nuget
+    # Settings -> Environments -> production must have Required reviewers (the approval gate) and allow
+    # the tag pattern v* under "Deployment branches and tags". The nuget.org trusted-publishing policy
+    # names this environment too.
+    environment: production
     permissions:
       contents: write   # create the GitHub release
       id-token: write   # NuGet trusted publishing (OIDC)
 
     steps:
+      - name: Check configuration
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          if [ -z "$NUGET_USER" ]; then
+            echo "::error::Repository variable NUGET_USER (the nuget.org profile name) is not set."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -108,13 +119,14 @@ jobs:
           name: nuget-package
           path: artifacts
 
-      # Trusted publishing: no API key is stored. The policy on nuget.org must name this
-      # repository and the workflow file "release.yml". The user is the nuget.org profile name.
+      # Trusted publishing: no API key is stored. The policy on nuget.org must name this repository,
+      # the workflow file "release.yml" and the environment "production". NUGET_USER (repository
+      # variable) is the nuget.org profile name.
       - name: NuGet login (trusted publishing)
         id: login
         uses: NuGet/login@v1
         with:
-          user: darph81
+          user: ${{ vars.NUGET_USER }}
 
       # The .snupkg next to the .nupkg is pushed automatically.
       - name: Push to nuget.org
