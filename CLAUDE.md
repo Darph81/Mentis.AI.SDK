@@ -640,14 +640,16 @@ Verified against a running Manager (2026-09-28):
     test for the old "every chat fails" behavior). Verified 2026-10-22 against
     the Manager's log: `null` -> no outbound request, `""` -> `GET
     https://services.odata.org/...` right after the call starts.
-    **Environment note (2026-10-22):** on the owner's machine the Manager
-    container cannot open outbound TCP 443 (port 80 and DNS work, MTU is fine,
-    not an `internal` network - a host firewall/forwarding rule), so the two
-    with-secret tests fail after ~100 s with `OData.RequestFailed` and a hint;
-    check with `docker exec <container> curl -sS -m 15 -o /dev/null -w
-    '%{http_code}' https://services.odata.org/`. The failure is the
-    environment, not the SDK. The README lists all infrastructure the
-    integration tests need.
+    **Environment note:** the with-secret tests need the Manager *container*
+    to reach `services.odata.org` over HTTPS. On 2026-10-22 the owner's
+    container could not open outbound TCP 443 (DNS and port 80 worked, MTU fine,
+    not an `internal` network - a host firewall/forwarding rule), so both failed
+    after ~100 s with `OData.RequestFailed` and a hint; after the owner fixed the
+    network (2026-10-24) all four `Llm` tests pass, including both with-secret
+    variants. If they fail again, check with `docker exec <container> curl -sS
+    -m 15 -o /dev/null -w '%{http_code}' https://services.odata.org/` before
+    suspecting the SDK. The README lists all infrastructure the integration
+    tests need.
   - When appending to `.env` make sure the file ends with a newline first -
     otherwise the new line is glued to the last value and corrupts a key.
 
