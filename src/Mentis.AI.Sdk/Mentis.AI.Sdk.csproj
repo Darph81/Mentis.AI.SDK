@@ -27,26 +27,17 @@
 
   <ItemGroup>
     <PackageReference Include="Grpc.Net.Client" />
-    <PackageReference Include="Google.Protobuf" />
-    <PackageReference Include="Grpc.Tools">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <!-- The generated gRPC messages and clients come from the Manager's contract package. They are an implementation
+         detail (the public API uses SDK-owned models), so their compile assets do not flow to consumers; the
+         package and its runtime assets still do. -->
+    <PackageReference Include="Mentis.AI.Contracts" PrivateAssets="compile" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Copies of the Manager's non-admin protos (admin.proto is out of scope).
-         Generated types are internal - the public API uses SDK-owned models. -->
-    <Protobuf Include="Protos/*.proto" GrpcServices="Client" Access="Internal" />
-  </ItemGroup>
-
-  <ItemGroup>
     <InternalsVisibleTo Include="Mentis.AI.Sdk.Tests" />
-    <!-- Lets NSubstitute (Castle.Core) mock the internal generated gRPC clients. -->
-    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
   <ItemGroup>

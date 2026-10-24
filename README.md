@@ -344,13 +344,11 @@ dotnet build
 dotnet test tests/Mentis.AI.Sdk.Tests
 ```
 
-The proto files under `src/Mentis.AI.Sdk/Protos` are copies of the Manager's.
-With the Manager repository checked out next to this one, verify or update them:
-
-```bash
-scripts/protos.sh check --ref origin/main
-scripts/protos.sh sync  --ref origin/main
-```
+The generated gRPC messages and clients come from the
+[`Mentis.AI.Contracts`](https://www.nuget.org/packages/Mentis.AI.Contracts) NuGet package,
+which the Manager publishes from its `.proto` files; the version is pinned in
+`Directory.Packages.props`. It is an implementation detail of the SDK and not part of
+its public API.
 
 ### Integration tests and sample
 
